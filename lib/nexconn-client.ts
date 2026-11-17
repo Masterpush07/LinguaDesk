@@ -11,6 +11,7 @@ export type ChatMessage = {
   mine: boolean;
   ai: boolean;
   translation?: string; // English version shown to the owner under a customer's message
+  numberWarning?: boolean; // the numbers in the translation differ from the original
 };
 export type Conversation = { peerId: string; unread: number; lastText: string; time: number };
 

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { onConnection, onMessage, sendText, signOutOwner, type ChatMessage } from "@/lib/nexconn-client";
+import { sameNumbers } from "@/lib/number-check";
 
 export type OwnerConversation = {
   customer_id: string;
@@ -61,6 +62,7 @@ export function useOwnerInbox() {
 }
 
 function toChat(m: OwnerMessage): ChatMessage {
+  const translation = m.sender === "customer" && m.text_en && m.text_en !== m.text ? m.text_en : undefined;
   return {
     id: m.id,
     from: m.sender,
@@ -68,7 +70,8 @@ function toChat(m: OwnerMessage): ChatMessage {
     time: new Date(m.created_at).getTime(),
     mine: m.sender !== "customer", // owner and AI both speak for the shop
     ai: m.sender === "ai",
-    translation: m.sender === "customer" && m.text_en && m.text_en !== m.text ? m.text_en : undefined,
+    translation,
+    numberWarning: translation !== undefined && !sameNumbers(m.text, translation),
   };
 }
 

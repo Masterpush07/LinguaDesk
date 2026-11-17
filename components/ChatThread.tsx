@@ -66,6 +66,11 @@ export default function ChatThread({ title, messages, connected, onSend, footnot
               {m.translation && (
                 <p className="mt-1 border-t border-gray-200 pt-1 text-xs italic text-gray-500">EN: {m.translation}</p>
               )}
+              {m.numberWarning && (
+                <p className="mt-1 rounded bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
+                  Numbers may not match the original - verify before replying
+                </p>
+              )}
               <p className={m.mine ? "mt-1 text-right text-[10px] text-indigo-200" : "mt-1 text-[10px] text-gray-400"}>
                 {new Date(m.time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
               </p>

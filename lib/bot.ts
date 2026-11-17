@@ -1,7 +1,9 @@
 import { generateReply, type BotReply } from "@/lib/bot-ai";
 import { db } from "@/lib/db";
 import { sendDirectText } from "@/lib/nexconn-server";
+import { onlyKnownNumbers } from "@/lib/number-check";
 import { SHOP_ID } from "@/lib/shop";
+import { SHOP_KB } from "@/lib/shop-kb";
 
 type WebhookMessage = {
   userId: string;
@@ -66,6 +68,17 @@ async function answerCustomer(customerId: string, messageId: string, text: strin
     reply = await generateReply(text);
   } catch (err) {
     console.error("AI reply failed:", err instanceof Error ? err.message : err);
+  }
+
+  // A price or date that is neither in the shop info nor in the customer's message never reaches the customer.
+  if (reply && !onlyKnownNumbers(reply.answer, SHOP_KB, text)) {
+    console.error("AI answer blocked, unknown number:", reply.answer);
+    reply = {
+      ...reply,
+      needs_human: true,
+      answer: FALLBACK_ANSWER,
+      owner_summary: `${reply.owner_summary} (The AI's draft answer was blocked: it contained a number not in the shop info.)`,
+    };
   }
 
   await sql`INSERT INTO messages (id, customer_id, sender, text, text_en)
