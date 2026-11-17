@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import ChatThread from "@/components/ChatThread";
+import ThemeToggle from "@/components/ThemeToggle";
 import { connect, forgetGuest, getGuestSession, type ChatMessage } from "@/lib/nexconn-client";
 import { SHOP_ID, SHOP_NAME } from "@/lib/shop";
 import { useConversation } from "@/lib/use-chat";
@@ -44,6 +45,7 @@ function ShopChat() {
       title={SHOP_NAME}
       subtitle="AI-assisted support · write in any language"
       peerLabel="Shop team"
+      actions={<ThemeToggle />}
       messages={messages}
       connected={connected}
       onSend={send}
@@ -59,17 +61,17 @@ function ShopChat() {
 function ChatSkeleton() {
   return (
     <div className="flex h-full flex-col" aria-busy="true" aria-label="Connecting to chat">
-      <div className="flex items-center gap-3 border-b border-gray-100 px-4 py-3">
-        <div className="h-10 w-10 animate-pulse rounded-full bg-gray-200" />
+      <div className="flex items-center gap-3 border-b border-line-soft px-4 py-3">
+        <div className="h-10 w-10 animate-pulse rounded-full bg-surface-3" />
         <div className="space-y-2">
-          <div className="h-3 w-36 animate-pulse rounded bg-gray-200" />
-          <div className="h-2.5 w-24 animate-pulse rounded bg-gray-100" />
+          <div className="h-3 w-36 animate-pulse rounded bg-surface-3" />
+          <div className="h-2.5 w-24 animate-pulse rounded bg-surface-3" />
         </div>
       </div>
-      <div className="flex-1 space-y-3 bg-gray-50 p-4">
-        <div className="h-10 w-2/3 animate-pulse rounded-2xl bg-gray-200" />
-        <div className="ml-auto h-10 w-1/2 animate-pulse rounded-2xl bg-indigo-100" />
-        <div className="h-16 w-3/4 animate-pulse rounded-2xl bg-gray-200" />
+      <div className="flex-1 space-y-3 bg-surface-2 p-4">
+        <div className="h-10 w-2/3 animate-pulse rounded-2xl bg-surface-3" />
+        <div className="ml-auto h-10 w-1/2 animate-pulse rounded-2xl bg-brand-soft" />
+        <div className="h-16 w-3/4 animate-pulse rounded-2xl bg-surface-3" />
       </div>
     </div>
   );
@@ -77,15 +79,15 @@ function ChatSkeleton() {
 
 function ConnectionError({ message }: { message: string }) {
   return (
-    <div className="flex h-full flex-col items-center justify-center bg-white px-8 text-center">
-      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-50 text-xl" aria-hidden="true">
+    <div className="flex h-full flex-col items-center justify-center bg-surface px-8 text-center">
+      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-danger-soft text-xl" aria-hidden="true">
         &#9888;
       </div>
-      <h1 className="mt-4 text-lg font-semibold text-gray-900">We couldn&apos;t connect</h1>
-      <p className="mt-1 text-sm text-gray-500">Check your internet connection and try again.</p>
-      <p className="mt-2 max-w-full truncate text-xs text-gray-400">{message}</p>
+      <h1 className="mt-4 text-lg font-semibold text-ink">We couldn&apos;t connect</h1>
+      <p className="mt-1 text-sm text-ink-2">Check your internet connection and try again.</p>
+      <p className="mt-2 max-w-full truncate text-xs text-ink-3">{message}</p>
       <button
-        className="mt-5 rounded-full bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-indigo-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2"
+        className="mt-5 rounded-full bg-brand px-5 py-2.5 text-sm font-medium text-white hover:bg-brand-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60 focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
         onClick={() => {
           forgetGuest();
           location.reload();
@@ -110,8 +112,8 @@ export default function ChatPage() {
   }, []);
 
   return (
-    <main className="flex min-h-dvh justify-center bg-gradient-to-b from-indigo-50 via-white to-white text-gray-900 sm:items-center sm:p-6">
-      <div className="h-dvh w-full max-w-md overflow-hidden bg-white sm:h-[min(760px,calc(100dvh-3rem))] sm:rounded-2xl sm:shadow-xl sm:ring-1 sm:ring-gray-200">
+    <main className="flex min-h-dvh justify-center bg-gradient-to-b from-brand-soft via-surface to-surface text-ink sm:items-center sm:p-6">
+      <div className="h-dvh w-full max-w-md overflow-hidden bg-surface sm:h-[min(760px,calc(100dvh-3rem))] sm:rounded-2xl sm:shadow-xl sm:ring-1 sm:ring-line">
         {ready ? <ShopChat /> : error ? <ConnectionError message={error} /> : <ChatSkeleton />}
       </div>
     </main>

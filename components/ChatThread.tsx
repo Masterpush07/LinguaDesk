@@ -1,15 +1,19 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { ChatMessage } from "@/lib/nexconn-client";
 
 type Props = {
   title: string;
   subtitle?: string;
+  leading?: ReactNode; // e.g. a back button on small screens
+  actions?: ReactNode; // extra controls at the right of the header
+  banner?: ReactNode; // strip under the header, e.g. the handoff status
   peerLabel?: string; // name above the first incoming bubble of a group; AI messages are always labelled "AI assistant"
   messages: ChatMessage[];
   connected: boolean;
   onSend: (text: string) => Promise<void>;
+  placeholder?: string;
   footnote?: string;
   typing?: boolean;
   suggestions?: string[]; // one-tap first messages shown while the chat is empty
@@ -50,7 +54,7 @@ function SendIcon() {
 
 function AiBadge() {
   return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-violet-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-violet-700">
+    <span className="inline-flex items-center gap-1 rounded-full bg-ai-soft px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-ai-ink ring-1 ring-ai-line">
       <svg viewBox="0 0 24 24" className="h-2.5 w-2.5" fill="currentColor" aria-hidden="true">
         <path d="M12 2l1.9 6.1L20 10l-6.1 1.9L12 18l-1.9-6.1L4 10l6.1-1.9L12 2z" />
       </svg>
@@ -61,25 +65,29 @@ function AiBadge() {
 
 function TypingBubble() {
   return (
-    <div className="bubble-in flex justify-start" role="status">
+    <div className="bubble-in flex justify-start pt-2" role="status">
       <span className="sr-only">The assistant is typing</span>
-      <div className="flex items-center gap-1 rounded-2xl rounded-bl-md bg-violet-50 px-4 py-3 ring-1 ring-violet-100" aria-hidden="true">
+      <div className="flex items-center gap-1 rounded-2xl rounded-bl-md bg-ai-soft px-4 py-3 ring-1 ring-ai-line" aria-hidden="true">
         {[0, 150, 300].map((delay) => (
-          <span key={delay} className="h-1.5 w-1.5 animate-bounce rounded-full bg-violet-400 motion-reduce:animate-none" style={{ animationDelay: `${delay}ms` }} />
+          <span key={delay} className="h-1.5 w-1.5 animate-bounce rounded-full bg-ai-ink/60 motion-reduce:animate-none" style={{ animationDelay: `${delay}ms` }} />
         ))}
       </div>
     </div>
   );
 }
 
-// Presentational chat window shared by the customer and owner screens; colours are explicit so OS dark mode cannot break it.
+// Presentational chat window shared by the customer and owner screens; all colours come from theme tokens.
 export default function ChatThread({
   title,
   subtitle,
+  leading,
+  actions,
+  banner,
   peerLabel,
   messages,
   connected,
   onSend,
+  placeholder = "Type a message",
   footnote,
   typing = false,
   suggestions = [],
@@ -151,20 +159,24 @@ export default function ChatThread({
   const rows = toRows(messages);
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-white text-gray-900">
-      <header className="flex items-center gap-3 border-b border-gray-100 px-4 py-3">
+    <div className="flex h-full min-h-0 flex-col bg-surface text-ink">
+      <header className="flex items-center gap-2 border-b border-line-soft px-3 py-3 sm:px-4">
+        {leading}
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 text-base font-semibold text-white" aria-hidden="true">
           {title.trim().charAt(0).toUpperCase()}
         </div>
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 pl-1">
           <h2 className="truncate text-[15px] font-semibold leading-tight">{title}</h2>
-          {subtitle && <p className="truncate text-xs text-gray-500">{subtitle}</p>}
+          {subtitle && <p className="truncate text-xs text-ink-2">{subtitle}</p>}
         </div>
-        <span className={`flex items-center gap-1.5 text-xs font-medium ${connected ? "text-emerald-600" : "text-amber-600"}`}>
+        <span className={`flex items-center gap-1.5 text-xs font-medium ${connected ? "text-ok-ink" : "text-warn-ink"}`}>
           <span className={`h-2 w-2 rounded-full ${connected ? "bg-emerald-500" : "animate-pulse bg-amber-500"}`} />
-          {connected ? "Online" : "Reconnecting"}
+          <span className="hidden sm:inline">{connected ? "Online" : "Reconnecting"}</span>
         </span>
+        {actions}
       </header>
+
+      {banner}
 
       <div className="relative min-h-0 flex-1">
         <div
@@ -173,15 +185,15 @@ export default function ChatThread({
           role="log"
           aria-live="polite"
           aria-label="Conversation"
-          className="h-full space-y-0.5 overflow-y-auto overscroll-contain bg-gray-50 px-3 py-4 sm:px-4"
+          className="h-full space-y-0.5 overflow-y-auto overscroll-contain bg-surface-2 px-3 py-4 sm:px-4"
         >
           {rows.length === 0 && (
             <div className="mx-auto flex max-w-xs flex-col items-center px-2 py-10 text-center">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-indigo-100 text-xl" aria-hidden="true">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-brand-soft text-xl" aria-hidden="true">
                 &#128172;
               </div>
               <h3 className="mt-4 text-base font-semibold">{emptyTitle}</h3>
-              <p className="mt-1 text-sm text-gray-500">{emptyText}</p>
+              <p className="mt-1 text-sm text-ink-2">{emptyText}</p>
               {suggestions.length > 0 && (
                 <div className="mt-5 flex w-full flex-col gap-2">
                   {suggestions.map((s) => (
@@ -191,7 +203,7 @@ export default function ChatThread({
                       dir="auto"
                       onClick={() => void deliver(s)}
                       disabled={sending}
-                      className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-left text-sm text-gray-700 transition hover:border-indigo-300 hover:bg-indigo-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 disabled:opacity-50"
+                      className="rounded-xl border border-line bg-surface px-4 py-2.5 text-left text-sm text-ink transition hover:border-brand hover:bg-brand-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60 disabled:opacity-50"
                     >
                       {s}
                     </button>
@@ -203,16 +215,15 @@ export default function ChatThread({
 
           {rows.map(({ message: m, startsGroup, endsGroup, dayLabel }) => (
             <div key={m.id}>
-              {dayLabel && <p className="my-3 text-center text-[11px] font-medium text-gray-400">{dayLabel}</p>}
+              {dayLabel && <p className="my-3 text-center text-[11px] font-medium text-ink-3">{dayLabel}</p>}
               <div className={`bubble-in flex flex-col ${m.mine ? "items-end" : "items-start"} ${startsGroup && !dayLabel ? "pt-2" : ""}`}>
                 {startsGroup && (m.ai || (!m.mine && peerLabel)) && (
-                  <div className="mb-1 px-1">{m.ai ? <AiBadge /> : <span className="text-[11px] font-medium text-gray-500">{peerLabel}</span>}</div>
+                  <div className="mb-1 px-1">{m.ai ? <AiBadge /> : <span className="text-[11px] font-medium text-ink-2">{peerLabel}</span>}</div>
                 )}
                 <div
                   className={[
-                    "max-w-[82%] px-3.5 py-2 text-[15px] leading-relaxed sm:max-w-[75%]",
-                    m.mine ? "bg-indigo-600 text-white" : m.ai ? "bg-violet-50 text-gray-900 ring-1 ring-violet-100" : "bg-white text-gray-900 ring-1 ring-gray-200",
-                    "rounded-2xl",
+                    "max-w-[82%] rounded-2xl px-3.5 py-2 text-[15px] leading-relaxed sm:max-w-[75%]",
+                    m.mine ? "bg-brand text-white" : m.ai ? "bg-ai-soft text-ink ring-1 ring-ai-line" : "bg-surface text-ink ring-1 ring-line",
                     m.mine ? (endsGroup ? "rounded-br-md" : "") : endsGroup ? "rounded-bl-md" : "",
                   ].join(" ")}
                 >
@@ -221,18 +232,18 @@ export default function ChatThread({
                     {m.text}
                   </p>
                   {m.translation && (
-                    <p dir="auto" className={`mt-1.5 border-t pt-1.5 text-xs ${m.mine ? "border-white/25 text-indigo-100" : "border-gray-200 text-gray-500"}`}>
+                    <p dir="auto" className={`mt-1.5 border-t pt-1.5 text-xs ${m.mine ? "border-white/25 text-white/80" : "border-line text-ink-2"}`}>
                       <span className="font-semibold">{m.translationLabel ?? "English"}:</span> {m.translation}
                     </p>
                   )}
                   {m.numberWarning && (
-                    <p className="mt-1.5 rounded-md bg-amber-50 px-2 py-1 text-xs font-medium text-amber-800 ring-1 ring-amber-200">
+                    <p className="mt-1.5 rounded-md bg-warn-soft px-2 py-1 text-xs font-medium text-warn-ink ring-1 ring-warn-line">
                       Numbers may not match the original. Verify before replying.
                     </p>
                   )}
                 </div>
                 {endsGroup && (
-                  <p className="mt-1 px-1 text-[11px] text-gray-400">
+                  <p className="mt-1 px-1 text-[11px] text-ink-3">
                     {new Date(m.time).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
                   </p>
                 )}
@@ -245,7 +256,7 @@ export default function ChatThread({
         {!atBottom && (
           <button
             onClick={jumpToLatest}
-            className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-gray-900/90 px-3 py-1.5 text-xs font-medium text-white shadow-lg backdrop-blur hover:bg-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+            className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-ink px-3 py-1.5 text-xs font-medium text-surface shadow-lg hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60"
           >
             Jump to latest
           </button>
@@ -257,10 +268,10 @@ export default function ChatThread({
           e.preventDefault();
           void deliver(text);
         }}
-        className="border-t border-gray-100 bg-white px-3 pb-3 pt-2.5 sm:px-4"
+        className="border-t border-line-soft bg-surface px-3 pb-3 pt-2.5 sm:px-4"
       >
         {error && (
-          <p role="alert" className="mb-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700 ring-1 ring-red-100">
+          <p role="alert" className="mb-2 rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger-ink">
             {error}
           </p>
         )}
@@ -271,25 +282,25 @@ export default function ChatThread({
             rows={1}
             maxLength={MAX_LENGTH}
             aria-label="Message"
-            placeholder="Type a message"
+            placeholder={placeholder}
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={onKeyDown}
-            className="max-h-32 min-h-[44px] flex-1 resize-none rounded-2xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-[15px] leading-normal text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-indigo-400 focus:bg-white focus:ring-2 focus:ring-indigo-100"
+            className="max-h-32 min-h-[44px] flex-1 resize-none rounded-2xl border border-line bg-surface-2 px-4 py-2.5 text-[15px] leading-normal text-ink outline-none transition placeholder:text-ink-3 focus:border-brand focus:bg-surface focus:ring-2 focus:ring-brand/20"
           />
           <button
             type="submit"
             aria-label="Send message"
             disabled={sending || !text.trim()}
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-white transition hover:bg-indigo-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 focus-visible:ring-offset-2 disabled:bg-gray-200 disabled:text-gray-400"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand text-white transition hover:bg-brand-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60 focus-visible:ring-offset-2 focus-visible:ring-offset-surface disabled:bg-surface-3 disabled:text-ink-3"
           >
             {sending ? <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" /> : <SendIcon />}
           </button>
         </div>
         <div className="mt-1.5 flex items-start justify-between gap-3 px-1">
-          {footnote ? <p className="text-[11px] leading-snug text-gray-400">{footnote}</p> : <span />}
+          {footnote ? <p className="text-[11px] leading-snug text-ink-3">{footnote}</p> : <span />}
           {text.length > MAX_LENGTH * 0.8 && (
-            <span className="shrink-0 text-[11px] tabular-nums text-gray-400">
+            <span className="shrink-0 text-[11px] tabular-nums text-ink-3">
               {text.length}/{MAX_LENGTH}
             </span>
           )}

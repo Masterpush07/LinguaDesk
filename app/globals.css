@@ -1,22 +1,89 @@
 @import "tailwindcss";
 
+/* Semantic colour tokens: components use bg-surface, text-ink, etc., and the .dark class swaps every value at once. */
 :root {
-  --background: #ffffff;
-  --foreground: #111827;
-  color-scheme: light; /* every screen is designed light-only, so OS dark mode must not recolour form controls */
+  --surface: #ffffff;
+  --surface-2: #f8f9fb;
+  --surface-3: #f0f2f6;
+  --line: #e5e7ee;
+  --line-soft: #eef0f5;
+  --ink: #121826;
+  --ink-2: #4b5367;
+  --ink-3: #6b7385;
+  --brand: #4f46e5;
+  --brand-hover: #4338ca;
+  --brand-soft: #eef0ff;
+  --brand-ink: #3730a3;
+  --ai-soft: #f5f3ff;
+  --ai-line: #e4defc;
+  --ai-ink: #6d28d9;
+  --warn-soft: #fffbeb;
+  --warn-line: #fde68a;
+  --warn-ink: #92400e;
+  --ok-soft: #ecfdf5;
+  --ok-ink: #047857;
+  --danger-soft: #fef2f2;
+  --danger-ink: #b91c1c;
+  color-scheme: light;
+}
+
+.dark {
+  --surface: #0f1219;
+  --surface-2: #141821;
+  --surface-3: #1b2030;
+  --line: #272d3d;
+  --line-soft: #1f2433;
+  --ink: #e7e9f0;
+  --ink-2: #a6adbf;
+  --ink-3: #8189a0;
+  --brand: #5558e6;
+  --brand-hover: #6a6df0;
+  --brand-soft: #1c2040;
+  --brand-ink: #a5b4fc;
+  --ai-soft: #1b1830;
+  --ai-line: #2d2954;
+  --ai-ink: #c4b5fd;
+  --warn-soft: #2a2110;
+  --warn-line: #5b4515;
+  --warn-ink: #fcd34d;
+  --ok-soft: #0f2a22;
+  --ok-ink: #6ee7b7;
+  --danger-soft: #2d1517;
+  --danger-ink: #fca5a5;
+  color-scheme: dark;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-line: var(--line);
+  --color-line-soft: var(--line-soft);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-brand: var(--brand);
+  --color-brand-hover: var(--brand-hover);
+  --color-brand-soft: var(--brand-soft);
+  --color-brand-ink: var(--brand-ink);
+  --color-ai-soft: var(--ai-soft);
+  --color-ai-line: var(--ai-line);
+  --color-ai-ink: var(--ai-ink);
+  --color-warn-soft: var(--warn-soft);
+  --color-warn-line: var(--warn-line);
+  --color-warn-ink: var(--warn-ink);
+  --color-ok-soft: var(--ok-soft);
+  --color-ok-ink: var(--ok-ink);
+  --color-danger-soft: var(--danger-soft);
+  --color-danger-ink: var(--danger-ink);
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, "Segoe UI", "Noto Sans", "Noto Sans Devanagari",
     "Noto Sans Tamil", "Noto Sans Kannada", "Noto Sans Arabic", "Noto Sans SC", "Noto Sans JP", "Noto Sans KR", sans-serif;
   --font-mono: var(--font-geist-mono);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: var(--surface);
+  color: var(--ink);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;

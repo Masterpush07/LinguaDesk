@@ -54,6 +54,7 @@ function useRefreshTriggers(refresh: () => void) {
 export function useOwnerInbox() {
   const [conversations, setConversations] = useState<OwnerConversation[]>([]);
   const [error, setError] = useState("");
+  const [loaded, setLoaded] = useState(false);
 
   const refresh = useCallback(() => {
     getJson<OwnerConversation[]>("/api/owner/conversations")
@@ -61,7 +62,8 @@ export function useOwnerInbox() {
         setConversations(list);
         setError("");
       })
-      .catch((err: Error) => setError(err.message));
+      .catch((err: Error) => setError(err.message))
+      .finally(() => setLoaded(true));
   }, []);
 
   useEffect(() => {
@@ -69,7 +71,7 @@ export function useOwnerInbox() {
   }, [refresh]);
   useRefreshTriggers(refresh);
 
-  return { conversations, error, refresh };
+  return { conversations, error, loaded, refresh };
 }
 
 function toChat(m: OwnerMessage): ChatMessage {
