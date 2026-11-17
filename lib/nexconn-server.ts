@@ -73,13 +73,14 @@ export function issueAccessToken(userId: string, name: string) {
 }
 
 // Sends a plain text message as fromUserId, e.g. the shop's bot answering a customer.
-export function sendDirectText(fromUserId: string, toUserId: string, text: string) {
+export function sendDirectText(fromUserId: string, toUserId: string, text: string, options: { ai?: boolean } = {}) {
   return nexconnPost("/v4/direct-channel/message/send", {
     fromUserId,
     toUserIds: [toUserId],
     messageType: "RC:TxtMsg",
     content: JSON.stringify({ content: text }), // wire format uses "content", the client SDK maps it to "text"
     isEchoToSender: 1, // also show it on the sender's own devices, e.g. the owner dashboard
+    ...(options.ai ? { hasMetadata: true, metadata: { ai: "1" } } : {}), // lets the UI label AI-written messages
   });
 }
 

@@ -1,3 +1,4 @@
+import { generateReply } from "@/lib/bot-ai";
 import { sendDirectText } from "@/lib/nexconn-server";
 import { SHOP_ID } from "@/lib/shop";
 
@@ -28,7 +29,17 @@ export async function handleEvent(event: WebhookEvent) {
     if (m.messageType !== "RC:TxtMsg") continue;
 
     const text = (JSON.parse(m.content) as { content?: string }).content ?? "";
-    // Temporary echo to prove the webhook round trip; the Gemini reply replaces this next.
-    await sendDirectText(SHOP_ID, m.userId, `Echo bot: ${text}`);
+    if (!text.trim()) continue;
+
+    let answer: string;
+    try {
+      const reply = await generateReply(text);
+      answer = reply.answer;
+      console.info("bot reply", { language: reply.customer_language, needsHuman: reply.needs_human });
+    } catch (err) {
+      console.error("AI reply failed:", err instanceof Error ? err.message : err);
+      answer = "Thanks for your message! A team member will reply shortly."; // the customer is never left unanswered
+    }
+    await sendDirectText(SHOP_ID, m.userId, answer, { ai: true });
   }
 }

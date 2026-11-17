@@ -8,10 +8,11 @@ type Props = {
   messages: ChatMessage[];
   connected: boolean;
   onSend: (text: string) => Promise<void>;
+  footnote?: string;
 };
 
 // Presentational chat window; colours are explicit so it stays readable in OS dark mode.
-export default function ChatThread({ title, messages, connected, onSend }: Props) {
+export default function ChatThread({ title, messages, connected, onSend, footnote }: Props) {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
@@ -58,6 +59,7 @@ export default function ChatThread({ title, messages, connected, onSend }: Props
               }
             >
               {/* dir="auto" lets Arabic and other right-to-left text lay out correctly. */}
+              {m.ai && <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-wide text-indigo-500">AI assistant</p>}
               <p dir="auto" className="whitespace-pre-wrap break-words">
                 {m.text}
               </p>
@@ -88,6 +90,7 @@ export default function ChatThread({ title, messages, connected, onSend }: Props
             {sending ? "Sending..." : "Send"}
           </button>
         </div>
+        {footnote && <p className="mt-2 text-[11px] text-gray-400">{footnote}</p>}
       </form>
     </div>
   );

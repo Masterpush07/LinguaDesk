@@ -3,7 +3,7 @@ import type { Message } from "@nexconn/chat";
 // Browser-only wrapper around the Nexconn Web SDK, shared by the customer chat and the owner dashboard.
 
 export type Session = { userId: string; token: string };
-export type ChatMessage = { id: string; from: string; text: string; time: number; mine: boolean };
+export type ChatMessage = { id: string; from: string; text: string; time: number; mine: boolean; ai: boolean };
 export type Conversation = { peerId: string; unread: number; lastText: string; time: number };
 
 type Sdk = typeof import("@nexconn/chat");
@@ -18,7 +18,14 @@ const channelSyncListeners = new Set<() => void>();
 function toChat(m: Message): ChatMessage | null {
   const text = (m.content as { text?: string }).text;
   if (!sdk || m.messageType !== sdk.MessageType.TEXT || text === undefined) return null;
-  return { id: m.messageId, from: m.senderUserId, text, time: m.sentTime, mine: m.senderUserId === myId };
+  return {
+    id: m.messageId,
+    from: m.senderUserId,
+    text,
+    time: m.sentTime,
+    mine: m.senderUserId === myId,
+    ai: m.metadata?.get("ai") === "1", // set by the server when the bot wrote the message
+  };
 }
 
 function requireSdk(): Sdk {

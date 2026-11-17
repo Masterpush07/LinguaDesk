@@ -8,7 +8,15 @@ import { useConversation } from "@/lib/use-chat";
 
 function ShopChat() {
   const { messages, connected, send } = useConversation(SHOP_ID);
-  return <ChatThread title={SHOP_NAME} messages={messages} connected={connected} onSend={send} />;
+  return (
+    <ChatThread
+      title={SHOP_NAME}
+      messages={messages}
+      connected={connected}
+      onSend={send}
+      footnote="Replies may be written by AI (Google Gemini). Please don't share sensitive information."
+    />
+  );
 }
 
 // Customer view: a guest opens the link and chats with the shop, no signup.
