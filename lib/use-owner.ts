@@ -1,7 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { onConnection, onMessage, signOutOwner, type ChatMessage } from "@/lib/nexconn-client";
+import {
+  onConnection,
+  onMessage,
+  signOutOwner,
+  type ChatMessage,
+} from "@/lib/nexconn-client";
 import { sameNumbers } from "@/lib/number-check";
 
 export type OwnerConversation = {
@@ -12,7 +17,13 @@ export type OwnerConversation = {
   last_text: string;
   last_at: string;
 };
-type OwnerMessage = { id: string; sender: "customer" | "ai" | "owner"; text: string; text_en: string | null; created_at: string };
+type OwnerMessage = {
+  id: string;
+  sender: "customer" | "ai" | "owner";
+  text: string;
+  text_en: string | null;
+  created_at: string;
+};
 
 async function getJson<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, init);
@@ -65,7 +76,13 @@ function toChat(m: OwnerMessage): ChatMessage {
   const fromCustomer = m.sender === "customer";
   // For an owner reply, text_en is the owner's own English and text is what the customer received.
   const sentInEnglish = m.sender === "owner" && m.text_en;
-  const translation = fromCustomer ? (m.text_en && m.text_en !== m.text ? m.text_en : undefined) : sentInEnglish ? m.text : undefined;
+  const translation = fromCustomer
+    ? m.text_en && m.text_en !== m.text
+      ? m.text_en
+      : undefined
+    : sentInEnglish
+      ? m.text
+      : undefined;
   return {
     id: m.id,
     from: m.sender,
@@ -75,16 +92,24 @@ function toChat(m: OwnerMessage): ChatMessage {
     ai: m.sender === "ai",
     translation,
     translationLabel: sentInEnglish ? "Sent to customer" : undefined,
-    numberWarning: fromCustomer && translation !== undefined && !sameNumbers(m.text, translation),
+    numberWarning:
+      fromCustomer &&
+      translation !== undefined &&
+      !sameNumbers(m.text, translation),
   };
 }
 
 export function useOwnerThread(peerId: string, onChanged: () => void) {
-  const [data, setData] = useState<{ conversation: OwnerConversation; messages: OwnerMessage[] } | null>(null);
+  const [data, setData] = useState<{
+    conversation: OwnerConversation;
+    messages: OwnerMessage[];
+  } | null>(null);
   const [connected, setConnected] = useState(true);
 
   const refresh = useCallback(() => {
-    getJson<{ conversation: OwnerConversation; messages: OwnerMessage[] }>(`/api/owner/conversations/${peerId}`)
+    getJson<{ conversation: OwnerConversation; messages: OwnerMessage[] }>(
+      `/api/owner/conversations/${peerId}`,
+    )
       .then(setData)
       .catch(() => {});
     onChanged();
@@ -107,7 +132,9 @@ export function useOwnerThread(peerId: string, onChanged: () => void) {
         body: JSON.stringify({ customerId: peerId, text }),
       });
       if (!res.ok) {
-        const body = (await res.json().catch(() => null)) as { error?: string } | null;
+        const body = (await res.json().catch(() => null)) as {
+          error?: string;
+        } | null;
         throw new Error(body?.error ?? `Could not send (${res.status})`);
       }
       refresh();
@@ -120,5 +147,11 @@ export function useOwnerThread(peerId: string, onChanged: () => void) {
     refresh();
   }, [peerId, refresh]);
 
-  return { conversation: data?.conversation, messages, connected, send, handBack };
+  return {
+    conversation: data?.conversation,
+    messages,
+    connected,
+    send,
+    handBack,
+  };
 }

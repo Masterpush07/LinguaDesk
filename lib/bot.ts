@@ -17,12 +17,15 @@ type WebhookMessage = {
 export type WebhookEvent = { type: string; id: string; data: WebhookMessage[] };
 
 const DIRECT_CHANNEL = 1;
-const FALLBACK_ANSWER = "Thanks for your message! A team member will reply shortly.";
+const FALLBACK_ANSWER =
+  "Thanks for your message! A team member will reply shortly.";
 
 function textOf(m: WebhookMessage): string | null {
   if (m.messageType !== "RC:TxtMsg") return null;
   try {
-    return (JSON.parse(m.content) as { content?: string }).content?.trim() || null;
+    return (
+      (JSON.parse(m.content) as { content?: string }).content?.trim() || null
+    );
   } catch {
     return null;
   }
@@ -33,15 +36,18 @@ export async function handleEvent(event: WebhookEvent) {
   if (event.type !== "message:send") return;
 
   // Nexconn retries deliveries; only the first insert of an event ID gets to proceed.
-  const claimed = await db()`INSERT INTO webhook_events (id) VALUES (${event.id}) ON CONFLICT DO NOTHING RETURNING id`;
+  const claimed =
+    await db()`INSERT INTO webhook_events (id) VALUES (${event.id}) ON CONFLICT DO NOTHING RETURNING id`;
   if (claimed.length === 0) return;
 
   for (const m of event.data) {
     if (m.channelType !== DIRECT_CHANNEL || m.os === "Server") continue; // server-sent messages are stored when we send them
     const text = textOf(m);
     if (!text) continue;
-    if (m.userId === SHOP_ID) await recordOwnerMessage(m.channelId, m.messageId, text);
-    else if (m.channelId === SHOP_ID) await answerCustomer(m.userId, m.messageId, text);
+    if (m.userId === SHOP_ID)
+      await recordOwnerMessage(m.channelId, m.messageId, text);
+    else if (m.channelId === SHOP_ID)
+      await answerCustomer(m.userId, m.messageId, text);
   }
 }
 
@@ -50,17 +56,26 @@ async function touchConversation(customerId: string, text: string) {
     ON CONFLICT (customer_id) DO UPDATE SET last_text = ${text}, last_at = now()`;
 }
 
-async function recordOwnerMessage(customerId: string, messageId: string, text: string) {
+async function recordOwnerMessage(
+  customerId: string,
+  messageId: string,
+  text: string,
+) {
   await touchConversation(customerId, text);
   // The owner has joined, so from now on the bot stays out of this chat.
   await db()`UPDATE conversations SET status = 'human' WHERE customer_id = ${customerId}`;
   await db()`INSERT INTO messages (id, customer_id, sender, text) VALUES (${messageId}, ${customerId}, 'owner', ${text}) ON CONFLICT DO NOTHING`;
 }
 
-async function answerCustomer(customerId: string, messageId: string, text: string) {
+async function answerCustomer(
+  customerId: string,
+  messageId: string,
+  text: string,
+) {
   const sql = db();
   await touchConversation(customerId, text);
-  const [conversation] = await sql`SELECT status FROM conversations WHERE customer_id = ${customerId}`;
+  const [conversation] =
+    await sql`SELECT status FROM conversations WHERE customer_id = ${customerId}`;
 
   // One AI call gives the answer, the English text for the owner and the handoff decision.
   let reply: BotReply | null = null;
@@ -83,7 +98,8 @@ async function answerCustomer(customerId: string, messageId: string, text: strin
 
   await sql`INSERT INTO messages (id, customer_id, sender, text, text_en)
     VALUES (${messageId}, ${customerId}, 'customer', ${text}, ${reply?.customer_text_en ?? null}) ON CONFLICT DO NOTHING`;
-  if (reply) await sql`UPDATE conversations SET language = ${reply.customer_language} WHERE customer_id = ${customerId}`;
+  if (reply)
+    await sql`UPDATE conversations SET language = ${reply.customer_language} WHERE customer_id = ${customerId}`;
 
   if (conversation.status === "human") return; // the owner has replied, so the bot stays silent
 

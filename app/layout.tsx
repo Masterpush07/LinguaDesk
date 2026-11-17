@@ -14,7 +14,8 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "LinguaDesk - multilingual support chat for small shops",
-  description: "AI answers customers in their own language; the shop owner replies in English with number-checked translation.",
+  description:
+    "AI answers customers in their own language; the shop owner replies in English with number-checked translation.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

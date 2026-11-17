@@ -36,4 +36,7 @@ for (const statement of statements) await sql.query(statement);
 const tables = await sql.query(
   "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name",
 );
-console.log("tables now in the database:", tables.map((t) => t.table_name).join(", "));
+console.log(
+  "tables now in the database:",
+  tables.map((t) => t.table_name).join(", "),
+);

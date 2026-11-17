@@ -3,7 +3,10 @@ import { createHash, randomBytes, randomUUID, timingSafeEqual } from "crypto";
 // Server-only helper: signs and sends Nexconn Platform Chat API calls. Never import it in client code.
 
 export class NexconnApiError extends Error {
-  constructor(public code: number, message: string) {
+  constructor(
+    public code: number,
+    message: string,
+  ) {
     super(message);
   }
 }
@@ -53,7 +56,10 @@ export async function nexconnPost<T>(path: string, body: unknown): Promise<T> {
       if (res.status >= 500) throw new Error(`HTTP ${res.status} from ${host}`);
       const json = await res.json();
       if (json.code !== 0) {
-        throw new NexconnApiError(json.code, json.errorMessage ?? `HTTP ${res.status}`);
+        throw new NexconnApiError(
+          json.code,
+          json.errorMessage ?? `HTTP ${res.status}`,
+        );
       }
       return json.result as T;
     } catch (err) {
@@ -73,15 +79,23 @@ export function issueAccessToken(userId: string, name: string) {
 }
 
 // Sends a plain text message as fromUserId, e.g. the shop's bot answering a customer.
-export function sendDirectText(fromUserId: string, toUserId: string, text: string, options: { ai?: boolean } = {}) {
-  return nexconnPost<{ messageIds?: { userId: string; messageId: string }[] }>("/v4/direct-channel/message/send", {
-    fromUserId,
-    toUserIds: [toUserId],
-    messageType: "RC:TxtMsg",
-    content: JSON.stringify({ content: text }), // wire format uses "content", the client SDK maps it to "text"
-    isEchoToSender: 1, // also show it on the sender's own devices, e.g. the owner dashboard
-    ...(options.ai ? { hasMetadata: true, metadata: { ai: "1" } } : {}), // lets the UI label AI-written messages
-  });
+export function sendDirectText(
+  fromUserId: string,
+  toUserId: string,
+  text: string,
+  options: { ai?: boolean } = {},
+) {
+  return nexconnPost<{ messageIds?: { userId: string; messageId: string }[] }>(
+    "/v4/direct-channel/message/send",
+    {
+      fromUserId,
+      toUserIds: [toUserId],
+      messageType: "RC:TxtMsg",
+      content: JSON.stringify({ content: text }), // wire format uses "content", the client SDK maps it to "text"
+      isEchoToSender: 1, // also show it on the sender's own devices, e.g. the owner dashboard
+      ...(options.ai ? { hasMetadata: true, metadata: { ai: "1" } } : {}), // lets the UI label AI-written messages
+    },
+  );
 }
 
 // Webhooks carry the same sha1(secret + nonce + timestamp) signature, but in AppKey/Nonce/Timestamp/Signature headers.
@@ -93,8 +107,12 @@ export function verifyWebhook(headers: Headers): boolean {
   const age = Math.abs(Date.now() - Number(timestamp));
   if (!Number.isFinite(age) || age > 5 * 60 * 1000) return false; // blocks replays of old requests
   const expected = Buffer.from(
-    createHash("sha1").update(env("NEXCONN_APP_SECRET") + nonce + timestamp).digest("hex"),
+    createHash("sha1")
+      .update(env("NEXCONN_APP_SECRET") + nonce + timestamp)
+      .digest("hex"),
   );
   const received = Buffer.from(signature.toLowerCase());
-  return expected.length === received.length && timingSafeEqual(expected, received);
+  return (
+    expected.length === received.length && timingSafeEqual(expected, received)
+  );
 }

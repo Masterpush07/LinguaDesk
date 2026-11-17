@@ -14,7 +14,12 @@ export type ChatMessage = {
   translationLabel?: string;
   numberWarning?: boolean; // the numbers in the translation differ from the original
 };
-export type Conversation = { peerId: string; unread: number; lastText: string; time: number };
+export type Conversation = {
+  peerId: string;
+  unread: number;
+  lastText: string;
+  time: number;
+};
 
 type Sdk = typeof import("@nexconn/chat");
 let sdk: Sdk | null = null;
@@ -27,7 +32,8 @@ const channelSyncListeners = new Set<() => void>();
 
 function toChat(m: Message): ChatMessage | null {
   const text = (m.content as { text?: string }).text;
-  if (!sdk || m.messageType !== sdk.MessageType.TEXT || text === undefined) return null;
+  if (!sdk || m.messageType !== sdk.MessageType.TEXT || text === undefined)
+    return null;
   return {
     id: m.messageId,
     from: m.senderUserId,
@@ -48,12 +54,17 @@ export function connect(session: Session): Promise<string> {
   boot ??= (async () => {
     const lib = await import("@nexconn/chat");
     sdk = lib;
-    lib.NCEngine.initialize({ appKey: process.env.NEXT_PUBLIC_NEXCONN_APP_KEY!, areaCode: lib.AreaCode.SG });
+    lib.NCEngine.initialize({
+      appKey: process.env.NEXT_PUBLIC_NEXCONN_APP_KEY!,
+      areaCode: lib.AreaCode.SG,
+    });
     lib.NCEngine.addConnectionStatusHandler(
       "app",
       new lib.ConnectionStatusHandler({
         onConnectionStatusChanged({ status }) {
-          connectionListeners.forEach((l) => l(status === lib.ConnectionStatus.CONNECTED));
+          connectionListeners.forEach((l) =>
+            l(status === lib.ConnectionStatus.CONNECTED),
+          );
         },
       }),
     );
@@ -78,7 +89,8 @@ export function connect(session: Session): Promise<string> {
       }),
     );
     const res = await lib.NCEngine.connect({ token: session.token });
-    if (!res.isOk) throw new Error(`Could not connect to chat (code ${res.code})`);
+    if (!res.isOk)
+      throw new Error(`Could not connect to chat (code ${res.code})`);
     myId = res.data!.userId;
     return myId;
   })();
@@ -106,9 +118,14 @@ export function onChannelsSynced(listener: () => void) {
   };
 }
 
-export async function sendText(peerId: string, text: string): Promise<ChatMessage> {
+export async function sendText(
+  peerId: string,
+  text: string,
+): Promise<ChatMessage> {
   const lib = requireSdk();
-  const res = await new lib.DirectChannel(peerId).sendMessage(new lib.SendTextMessageParams({ text }));
+  const res = await new lib.DirectChannel(peerId).sendMessage(
+    new lib.SendTextMessageParams({ text }),
+  );
   const chat = res.isOk && res.data ? toChat(res.data) : null;
   if (!chat) throw new Error(`Message not sent (code ${res.code})`);
   return chat;
@@ -133,14 +150,18 @@ export async function loadHistory(peerId: string): Promise<ChatMessage[]> {
 
 export async function listConversations(): Promise<Conversation[]> {
   const lib = requireSdk();
-  const res = await lib.BaseChannel.createChannelsQuery({ pageSize: 50 }).loadNextPage();
+  const res = await lib.BaseChannel.createChannelsQuery({
+    pageSize: 50,
+  }).loadNextPage();
   if (!res.isOk || !res.data) return [];
   return res.data.data
     .filter((c) => c.channelType === lib.ChannelType.DIRECT)
     .map((c) => ({
       peerId: c.channelId,
       unread: c.unreadCount,
-      lastText: c.latestMessage ? (toChat(c.latestMessage)?.text ?? "[attachment]") : "",
+      lastText: c.latestMessage
+        ? (toChat(c.latestMessage)?.text ?? "[attachment]")
+        : "",
       time: c.operationTime,
     }))
     .sort((a, b) => b.time - a.time);

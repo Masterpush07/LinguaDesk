@@ -27,7 +27,10 @@ export function sameNumbers(a: string, b: string): boolean {
 }
 
 // True when every number in the answer already appears in one of the trusted sources.
-export function onlyKnownNumbers(answer: string, ...sources: string[]): boolean {
+export function onlyKnownNumbers(
+  answer: string,
+  ...sources: string[]
+): boolean {
   const known = new Set(sources.flatMap(extractNumbers));
   return extractNumbers(answer).every((n) => known.has(n));
 }

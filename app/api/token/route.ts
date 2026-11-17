@@ -10,7 +10,13 @@ export async function POST() {
     const { accessToken } = await issueAccessToken(userId, "Guest");
     return NextResponse.json({ userId, token: accessToken });
   } catch (err) {
-    console.error("token issue failed:", err instanceof Error ? err.message : err);
-    return NextResponse.json({ error: "Could not create chat session" }, { status: 502 });
+    console.error(
+      "token issue failed:",
+      err instanceof Error ? err.message : err,
+    );
+    return NextResponse.json(
+      { error: "Could not create chat session" },
+      { status: 502 },
+    );
   }
 }

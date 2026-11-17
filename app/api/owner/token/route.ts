@@ -12,10 +12,15 @@ export async function POST(req: NextRequest) {
   const expected = process.env.OWNER_PASSCODE;
   if (!expected) {
     console.error("OWNER_PASSCODE is not set");
-    return NextResponse.json({ error: "Owner login is not configured" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Owner login is not configured" },
+      { status: 500 },
+    );
   }
 
-  const body = (await req.json().catch(() => null)) as { passcode?: unknown } | null;
+  const body = (await req.json().catch(() => null)) as {
+    passcode?: unknown;
+  } | null;
   const passcode = typeof body?.passcode === "string" ? body.passcode : "";
   if (!timingSafeEqual(digest(passcode), digest(expected))) {
     return NextResponse.json({ error: "Wrong passcode" }, { status: 401 });
@@ -26,7 +31,13 @@ export async function POST(req: NextRequest) {
     await setOwnerCookie();
     return NextResponse.json({ userId: SHOP_ID, token: accessToken });
   } catch (err) {
-    console.error("owner token issue failed:", err instanceof Error ? err.message : err);
-    return NextResponse.json({ error: "Could not start owner session" }, { status: 502 });
+    console.error(
+      "owner token issue failed:",
+      err instanceof Error ? err.message : err,
+    );
+    return NextResponse.json(
+      { error: "Could not start owner session" },
+      { status: 502 },
+    );
   }
 }

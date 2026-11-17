@@ -8,7 +8,9 @@ const MAX_AGE_SECONDS = 12 * 60 * 60;
 
 // Keyed with the passcode, so changing the passcode also logs everyone out.
 function sign(expires: string) {
-  return createHmac("sha256", process.env.OWNER_PASSCODE ?? "").update(expires).digest("hex");
+  return createHmac("sha256", process.env.OWNER_PASSCODE ?? "")
+    .update(expires)
+    .digest("hex");
 }
 
 export async function setOwnerCookie() {
@@ -33,5 +35,7 @@ export async function isOwner(): Promise<boolean> {
   if (!expires || !signature || Number(expires) < Date.now()) return false;
   const expected = Buffer.from(sign(expires));
   const received = Buffer.from(signature);
-  return expected.length === received.length && timingSafeEqual(expected, received);
+  return (
+    expected.length === received.length && timingSafeEqual(expected, received)
+  );
 }

@@ -15,7 +15,10 @@ export async function POST(req: NextRequest) {
     try {
       await handleEvent(event);
     } catch (err) {
-      console.error("webhook handling failed:", err instanceof Error ? err.message : err);
+      console.error(
+        "webhook handling failed:",
+        err instanceof Error ? err.message : err,
+      );
     }
   });
   return NextResponse.json({ ok: true });
