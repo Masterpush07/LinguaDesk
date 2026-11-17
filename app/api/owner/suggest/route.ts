@@ -15,9 +15,12 @@ export async function POST(req: NextRequest) {
   const customerId = typeof body?.customerId === "string" ? body.customerId : "";
   if (!CUSTOMER_ID.test(customerId)) return NextResponse.json({ error: "Bad request" }, { status: 400 });
 
-  const rows = await db()`SELECT sender, text, text_en FROM messages WHERE customer_id = ${customerId}
+  const sql = db();
+  const rows = await sql`SELECT sender, text, text_en FROM messages WHERE customer_id = ${customerId}
     ORDER BY created_at DESC LIMIT 12`;
   if (rows.length === 0) return NextResponse.json({ error: "No messages to reply to yet" }, { status: 404 });
+  // The handoff summary (for example "customer confirmed the order") tells the drafter what is happening right now.
+  const [conversation] = await sql`SELECT summary FROM conversations WHERE customer_id = ${customerId}`;
 
   // text_en holds the English version, so the model reads the owner's side and the translated customer side in English.
   const transcript = rows
@@ -26,7 +29,7 @@ export async function POST(req: NextRequest) {
     .join("\n");
 
   try {
-    const draft = await suggestReply(transcript);
+    const draft = await suggestReply(transcript, conversation?.summary);
     if (!draft) throw new Error("empty draft");
     const checked = onlyKnownNumbers(draft, SHOP_KB, transcript);
     return NextResponse.json({ draft, note: checked ? undefined : "Check the numbers: some are not in the shop info." });
