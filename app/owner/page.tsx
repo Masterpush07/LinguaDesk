@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import ChatThread from "@/components/ChatThread";
 import ThemeToggle from "@/components/ThemeToggle";
@@ -188,6 +189,9 @@ function Dashboard() {
           <h1 className="text-lg font-semibold">Inbox</h1>
           {waiting > 0 && <span className="rounded-full bg-amber-500 px-2 py-0.5 text-xs font-bold text-white">{waiting}</span>}
           <div className="ml-auto flex items-center gap-1">
+            <Link href="/owner/insights" className="rounded-full px-3 py-1.5 text-xs font-medium text-ink-2 hover:bg-surface-3 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60">
+              Insights
+            </Link>
             <ThemeToggle />
             <button onClick={signOut} className="rounded-full px-3 py-1.5 text-xs font-medium text-ink-2 hover:bg-surface-3 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60">
               Sign out
