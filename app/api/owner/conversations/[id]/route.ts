@@ -1,8 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { db } from "@/lib/db";
-import { isOwner } from "@/lib/owner-auth";
-
-const ID_PATTERN = /^[A-Za-z0-9]{3,64}$/; // same shape as Nexconn user IDs, so nothing odd reaches the query
+import { CUSTOMER_ID, isOwner } from "@/lib/owner-auth";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -10,7 +8,7 @@ type Ctx = { params: Promise<{ id: string }> };
 export async function GET(_req: NextRequest, ctx: Ctx) {
   if (!(await isOwner())) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
   const { id } = await ctx.params;
-  if (!ID_PATTERN.test(id)) return NextResponse.json({ error: "Bad id" }, { status: 400 });
+  if (!CUSTOMER_ID.test(id)) return NextResponse.json({ error: "Bad id" }, { status: 400 });
 
   const sql = db();
   const [conversation] = await sql`SELECT customer_id, status, language, summary, last_text, last_at
@@ -25,7 +23,7 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
 export async function POST(_req: NextRequest, ctx: Ctx) {
   if (!(await isOwner())) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
   const { id } = await ctx.params;
-  if (!ID_PATTERN.test(id)) return NextResponse.json({ error: "Bad id" }, { status: 400 });
+  if (!CUSTOMER_ID.test(id)) return NextResponse.json({ error: "Bad id" }, { status: 400 });
   await db()`UPDATE conversations SET status = 'ai', summary = NULL WHERE customer_id = ${id}`;
   return NextResponse.json({ ok: true });
 }

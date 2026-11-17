@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { onConnection, onMessage, sendText, signOutOwner, type ChatMessage } from "@/lib/nexconn-client";
+import { onConnection, onMessage, signOutOwner, type ChatMessage } from "@/lib/nexconn-client";
 import { sameNumbers } from "@/lib/number-check";
 
 export type OwnerConversation = {
@@ -62,22 +62,25 @@ export function useOwnerInbox() {
 }
 
 function toChat(m: OwnerMessage): ChatMessage {
-  const translation = m.sender === "customer" && m.text_en && m.text_en !== m.text ? m.text_en : undefined;
+  const fromCustomer = m.sender === "customer";
+  // For an owner reply, text_en is the owner's own English and text is what the customer received.
+  const sentInEnglish = m.sender === "owner" && m.text_en;
+  const translation = fromCustomer ? (m.text_en && m.text_en !== m.text ? m.text_en : undefined) : sentInEnglish ? m.text : undefined;
   return {
     id: m.id,
     from: m.sender,
-    text: m.text,
+    text: sentInEnglish ? m.text_en! : m.text,
     time: new Date(m.created_at).getTime(),
-    mine: m.sender !== "customer", // owner and AI both speak for the shop
+    mine: !fromCustomer, // owner and AI both speak for the shop
     ai: m.sender === "ai",
     translation,
-    numberWarning: translation !== undefined && !sameNumbers(m.text, translation),
+    translationLabel: sentInEnglish ? "Sent to customer" : undefined,
+    numberWarning: fromCustomer && translation !== undefined && !sameNumbers(m.text, translation),
   };
 }
 
 export function useOwnerThread(peerId: string, onChanged: () => void) {
   const [data, setData] = useState<{ conversation: OwnerConversation; messages: OwnerMessage[] } | null>(null);
-  const [pending, setPending] = useState<ChatMessage[]>([]);
   const [connected, setConnected] = useState(true);
 
   const refresh = useCallback(() => {
@@ -93,21 +96,21 @@ export function useOwnerThread(peerId: string, onChanged: () => void) {
   useEffect(() => onConnection(setConnected), []);
   useRefreshTriggers(refresh);
 
-  // A just-sent reply is shown at once and dropped when the database copy arrives via the webhook.
-  const messages = useMemo(() => {
-    const stored = (data?.messages ?? []).map(toChat);
-    const waiting = pending.filter(
-      (p) => !stored.some((s) => s.mine && !s.ai && s.text === p.text && s.time >= p.time - 5000),
-    );
-    return [...stored, ...waiting];
-  }, [data, pending]);
+  const messages = useMemo(() => (data?.messages ?? []).map(toChat), [data]);
 
+  // The server translates, number-checks, sends and stores the reply, so the thread just reloads afterwards.
   const send = useCallback(
     async (text: string) => {
-      const sent = await sendText(peerId, text);
-      setPending((prev) => [...prev, sent]);
-      setTimeout(refresh, 1500);
-      setTimeout(refresh, 5000);
+      const res = await fetch("/api/owner/reply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ customerId: peerId, text }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(body?.error ?? `Could not send (${res.status})`);
+      }
+      refresh();
     },
     [peerId, refresh],
   );

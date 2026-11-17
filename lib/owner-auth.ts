@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 
 // Signed, httpOnly login cookie so owner API routes can tell the owner apart from a customer.
 const COOKIE = "linguadesk_owner";
+export const CUSTOMER_ID = /^[A-Za-z0-9]{3,64}$/; // same shape as Nexconn user IDs, so nothing odd reaches a query
 const MAX_AGE_SECONDS = 12 * 60 * 60;
 
 // Keyed with the passcode, so changing the passcode also logs everyone out.

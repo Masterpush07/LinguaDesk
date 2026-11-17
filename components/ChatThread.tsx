@@ -64,7 +64,7 @@ export default function ChatThread({ title, messages, connected, onSend, footnot
                 {m.text}
               </p>
               {m.translation && (
-                <p className="mt-1 border-t border-gray-200 pt-1 text-xs italic text-gray-500">EN: {m.translation}</p>
+                <p className="mt-1 border-t border-gray-200 pt-1 text-xs italic text-gray-500">{m.translationLabel ?? "EN"}: {m.translation}</p>
               )}
               {m.numberWarning && (
                 <p className="mt-1 rounded bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
