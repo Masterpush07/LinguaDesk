@@ -19,6 +19,7 @@ export type WebhookEvent = { type: string; id: string; data: WebhookMessage[] };
 const DIRECT_CHANNEL = 1;
 const FALLBACK_ANSWER =
   "Thanks for your message! A team member will reply shortly.";
+const OWNER_IDLE_MINUTES = 30; // after this long without an owner reply, the AI answers customers again
 
 function textOf(m: WebhookMessage): string | null {
   if (m.messageType !== "RC:TxtMsg") return null;
@@ -74,8 +75,10 @@ async function answerCustomer(
 ) {
   const sql = db();
   await touchConversation(customerId, text);
-  const [conversation] =
-    await sql`SELECT status FROM conversations WHERE customer_id = ${customerId}`;
+  const [conversation] = await sql`SELECT status,
+    (SELECT (EXTRACT(EPOCH FROM now() - max(created_at)) / 60)::float8 FROM messages
+      WHERE customer_id = ${customerId} AND sender = 'owner') AS owner_idle_min
+    FROM conversations WHERE customer_id = ${customerId}`;
 
   // One AI call gives the answer, the English text for the owner and the handoff decision.
   let reply: BotReply | null = null;
@@ -101,10 +104,17 @@ async function answerCustomer(
   if (reply)
     await sql`UPDATE conversations SET language = ${reply.customer_language} WHERE customer_id = ${customerId}`;
 
-  if (conversation.status === "human") return; // the owner has replied, so the bot stays silent
+  // While the owner is actively replying the bot stays silent; once they go quiet it takes over again.
+  let status: string = conversation.status;
+  if (status === "human") {
+    const ownerIsActive = typeof conversation.owner_idle_min === "number" && conversation.owner_idle_min < OWNER_IDLE_MINUTES;
+    if (ownerIsActive) return;
+    status = "ai";
+    await sql`UPDATE conversations SET status = 'ai', summary = NULL WHERE customer_id = ${customerId}`;
+  }
 
   const needsHuman = reply?.needs_human ?? true; // if the AI is down, hand over instead of guessing
-  if (needsHuman && conversation.status === "ai") {
+  if (needsHuman && status === "ai") {
     // 'waiting' = owner was asked to step in; the bot keeps answering until the owner actually replies.
     await sql`UPDATE conversations SET status = 'waiting', summary = ${reply?.owner_summary ?? text} WHERE customer_id = ${customerId}`;
   }
