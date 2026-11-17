@@ -50,6 +50,8 @@ async function touchConversation(customerId: string, text: string) {
 
 async function recordOwnerMessage(customerId: string, messageId: string, text: string) {
   await touchConversation(customerId, text);
+  // The owner has joined, so from now on the bot stays out of this chat.
+  await db()`UPDATE conversations SET status = 'human' WHERE customer_id = ${customerId}`;
   await db()`INSERT INTO messages (id, customer_id, sender, text) VALUES (${messageId}, ${customerId}, 'owner', ${text}) ON CONFLICT DO NOTHING`;
 }
 
@@ -70,11 +72,12 @@ async function answerCustomer(customerId: string, messageId: string, text: strin
     VALUES (${messageId}, ${customerId}, 'customer', ${text}, ${reply?.customer_text_en ?? null}) ON CONFLICT DO NOTHING`;
   if (reply) await sql`UPDATE conversations SET language = ${reply.customer_language} WHERE customer_id = ${customerId}`;
 
-  if (conversation.status !== "ai") return; // a human owns this chat now, so the bot stays silent
+  if (conversation.status === "human") return; // the owner has replied, so the bot stays silent
 
   const needsHuman = reply?.needs_human ?? true; // if the AI is down, hand over instead of guessing
-  if (needsHuman) {
-    await sql`UPDATE conversations SET status = 'human', summary = ${reply?.owner_summary ?? text} WHERE customer_id = ${customerId}`;
+  if (needsHuman && conversation.status === "ai") {
+    // 'waiting' = owner was asked to step in; the bot keeps answering until the owner actually replies.
+    await sql`UPDATE conversations SET status = 'waiting', summary = ${reply?.owner_summary ?? text} WHERE customer_id = ${customerId}`;
   }
 
   const answer = reply?.answer ?? FALLBACK_ANSWER;
