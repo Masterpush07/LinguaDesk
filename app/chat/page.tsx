@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import ChatThread from "@/components/ChatThread";
 import ThemeToggle from "@/components/ThemeToggle";
 import { connect, forgetGuest, getGuestSession, type ChatMessage } from "@/lib/nexconn-client";
@@ -37,11 +37,24 @@ function useAssistantTyping(messages: ChatMessage[]) {
   return replyDue && gaveUp !== lastId;
 }
 
-function ShopChat() {
+function ShopChat({ customerId }: { customerId: string }) {
   const { messages, connected, send } = useConversation(SHOP_ID);
   const typing = useAssistantTyping(messages);
+  // Tapping "Confirm order" on a card tells the server, which alerts the shop owner once.
+  const confirmOrder = useCallback(
+    async (orderId: string) => {
+      const res = await fetch("/api/order/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ customerId, orderId }),
+      });
+      if (!res.ok) throw new Error("Could not confirm the order. Please try again.");
+    },
+    [customerId],
+  );
   return (
     <ChatThread
+      onConfirmOrder={confirmOrder}
       title={SHOP_NAME}
       subtitle="AI-assisted support · write in any language"
       peerLabel="Shop team"
@@ -101,20 +114,20 @@ function ConnectionError({ message }: { message: string }) {
 
 // Customer view: a guest opens the link and chats with the shop, no signup.
 export default function ChatPage() {
-  const [ready, setReady] = useState(false);
+  const [customerId, setCustomerId] = useState("");
   const [error, setError] = useState("");
 
   useEffect(() => {
     getGuestSession()
       .then(connect)
-      .then(() => setReady(true))
+      .then(setCustomerId)
       .catch((err: Error) => setError(err.message));
   }, []);
 
   return (
     <main className="flex min-h-dvh justify-center bg-gradient-to-b from-brand-soft via-surface to-surface text-ink sm:items-center sm:p-6">
       <div className="h-dvh w-full max-w-md overflow-hidden bg-surface sm:h-[min(760px,calc(100dvh-3rem))] sm:rounded-2xl sm:shadow-xl sm:ring-1 sm:ring-line">
-        {ready ? <ShopChat /> : error ? <ConnectionError message={error} /> : <ChatSkeleton />}
+        {customerId ? <ShopChat customerId={customerId} /> : error ? <ConnectionError message={error} /> : <ChatSkeleton />}
       </div>
     </main>
   );

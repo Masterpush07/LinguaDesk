@@ -8,6 +8,7 @@ import {
   type ChatMessage,
 } from "@/lib/nexconn-client";
 import { sameNumbers } from "@/lib/number-check";
+import type { OrderLine } from "@/lib/catalog";
 
 export type OwnerConversation = {
   customer_id: string;
@@ -84,7 +85,9 @@ function toChat(m: OwnerMessage): ChatMessage {
       : undefined
     : sentInEnglish
       ? m.text
-      : undefined;
+      : m.sender === "ai" && m.text_en
+        ? m.text_en
+        : undefined;
   return {
     id: m.id,
     from: m.sender,
@@ -156,6 +159,23 @@ export function useOwnerThread(peerId: string, onChanged: () => void) {
     return { text: body.draft, note: body.note };
   }, [peerId]);
 
+  // The server prices the order from the catalog, localizes the card's words and sends it as a card message.
+  const sendOrder = useCallback(
+    async (lines: OrderLine[]) => {
+      const res = await fetch("/api/owner/order", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ customerId: peerId, lines }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(body?.error ?? `Could not send the order (${res.status})`);
+      }
+      refresh();
+    },
+    [peerId, refresh],
+  );
+
   const handBack = useCallback(async () => {
     await getJson(`/api/owner/conversations/${peerId}`, { method: "POST" });
     refresh();
@@ -167,6 +187,7 @@ export function useOwnerThread(peerId: string, onChanged: () => void) {
     connected,
     send,
     suggest,
+    sendOrder,
     handBack,
   };
 }

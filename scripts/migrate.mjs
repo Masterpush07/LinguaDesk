@@ -29,6 +29,16 @@ const statements = [
     id text PRIMARY KEY,
     created_at timestamptz NOT NULL DEFAULT now()
   )`,
+  // An order the owner proposed. card holds the exact priced card the customer saw; status goes proposed -> confirmed.
+  `CREATE TABLE IF NOT EXISTS orders (
+    id text PRIMARY KEY,
+    customer_id text NOT NULL REFERENCES conversations (customer_id),
+    card jsonb NOT NULL,
+    total integer NOT NULL,
+    status text NOT NULL DEFAULT 'proposed',
+    created_at timestamptz NOT NULL DEFAULT now(),
+    confirmed_at timestamptz
+  )`,
 ];
 
 for (const statement of statements) await sql.query(statement);

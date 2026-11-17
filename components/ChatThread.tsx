@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import type { OrderCard } from "@/lib/catalog";
 import type { ChatMessage } from "@/lib/nexconn-client";
 
 type Props = {
@@ -14,6 +15,9 @@ type Props = {
   connected: boolean;
   onSend: (text: string) => Promise<void>;
   onSuggest?: () => Promise<{ text: string; note?: string }>; // owner only: drafts a reply into the message box
+  tools?: ReactNode; // extra buttons next to "Suggest a reply"
+  panel?: ReactNode; // expandable area above the message box, e.g. the order builder
+  onConfirmOrder?: (orderId: string) => Promise<void>; // customer only: enables the "Confirm order" button on cards
   placeholder?: string;
   footnote?: string;
   typing?: boolean;
@@ -77,6 +81,63 @@ function TypingBubble() {
   );
 }
 
+function OrderCardView({
+  card,
+  confirmed,
+  busy,
+  onConfirm,
+}: {
+  card: OrderCard;
+  confirmed: boolean;
+  busy: boolean;
+  onConfirm?: () => void;
+}) {
+  const L = card.labels;
+  return (
+    <div dir="auto" className="min-w-[15rem]">
+      <p className="text-sm font-semibold">{L.title}</p>
+      <ul className="mt-2 space-y-1 text-sm">
+        {card.lines.map((l) => (
+          <li key={l.name} className="flex justify-between gap-4">
+            <span>
+              {l.qty} &times; {l.name}
+            </span>
+            <span className="tabular-nums">${l.amount}</span>
+          </li>
+        ))}
+      </ul>
+      <dl className="mt-2 space-y-1 border-t border-line pt-2 text-sm">
+        <div className="flex justify-between gap-4 text-ink-2">
+          <dt>{L.subtotal}</dt>
+          <dd className="tabular-nums">${card.subtotal}</dd>
+        </div>
+        <div className="flex justify-between gap-4 text-ink-2">
+          <dt>{L.shipping}</dt>
+          <dd className="tabular-nums">{card.shipping === 0 ? L.free : `$${card.shipping}`}</dd>
+        </div>
+        <div className="flex justify-between gap-4 text-base font-semibold">
+          <dt>{L.total}</dt>
+          <dd className="tabular-nums">${card.total}</dd>
+        </div>
+      </dl>
+      {confirmed ? (
+        <p className="mt-3 rounded-lg bg-ok-soft px-3 py-2 text-center text-sm font-medium text-ok-ink">&#10003; {L.confirmed}</p>
+      ) : (
+        onConfirm && (
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={busy}
+            className="mt-3 w-full rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white transition hover:bg-brand-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60 disabled:opacity-60"
+          >
+            {busy ? "..." : L.confirm}
+          </button>
+        )
+      )}
+    </div>
+  );
+}
+
 // Presentational chat window shared by the customer and owner screens; all colours come from theme tokens.
 export default function ChatThread({
   title,
@@ -89,6 +150,9 @@ export default function ChatThread({
   connected,
   onSend,
   onSuggest,
+  tools,
+  panel,
+  onConfirmOrder,
   placeholder = "Type a message",
   footnote,
   typing = false,
@@ -101,6 +165,8 @@ export default function ChatThread({
   const [error, setError] = useState("");
   const [suggesting, setSuggesting] = useState(false);
   const [note, setNote] = useState("");
+  const [confirming, setConfirming] = useState<string | null>(null);
+  const [confirmedHere, setConfirmedHere] = useState<string[]>([]);
   const [atBottom, setAtBottom] = useState(true);
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -152,6 +218,20 @@ export default function ChatThread({
     }
   }
 
+  async function confirmOrder(orderId: string) {
+    if (!onConfirmOrder || confirming) return;
+    setConfirming(orderId);
+    setError("");
+    try {
+      await onConfirmOrder(orderId);
+      setConfirmedHere((prev) => [...prev, orderId]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not confirm the order. Please try again.");
+    } finally {
+      setConfirming(null);
+    }
+  }
+
   async function deliver(raw: string) {
     const value = raw.trim();
     if (!value || sending) return;
@@ -179,6 +259,8 @@ export default function ChatThread({
   }
 
   const rows = toRows(messages);
+  // A card counts as confirmed once its automatic confirmation message is in the thread (survives reloads) or the customer just tapped it.
+  const confirmedIds = new Set([...confirmedHere, ...messages.flatMap((m) => (m.confirmsOrder ? [m.confirmsOrder] : []))]);
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-surface text-ink">
@@ -250,9 +332,18 @@ export default function ChatThread({
                   ].join(" ")}
                 >
                   {/* dir="auto" lets Arabic and other right-to-left text lay out correctly. */}
-                  <p dir="auto" className="whitespace-pre-wrap break-words">
-                    {m.text}
-                  </p>
+                  {m.order ? (
+                    <OrderCardView
+                      card={m.order}
+                      confirmed={confirmedIds.has(m.order.id)}
+                      busy={confirming === m.order.id}
+                      onConfirm={onConfirmOrder && !m.mine ? () => void confirmOrder(m.order!.id) : undefined}
+                    />
+                  ) : (
+                    <p dir="auto" className="whitespace-pre-wrap break-words">
+                      {m.text}
+                    </p>
+                  )}
                   {m.translation && (
                     <p dir="auto" className={`mt-1.5 border-t pt-1.5 text-xs ${m.mine ? "border-white/25 text-white/80" : "border-line text-ink-2"}`}>
                       <span className="font-semibold">{m.translationLabel ?? "English"}:</span> {m.translation}
@@ -297,9 +388,10 @@ export default function ChatThread({
             {error}
           </p>
         )}
-        {onSuggest && (
+        {(onSuggest || tools) && (
           <div className="mb-2 flex flex-wrap items-center gap-2">
-            <button
+            {onSuggest && (
+              <button
               type="button"
               onClick={() => void suggest()}
               disabled={suggesting || sending}
@@ -314,9 +406,12 @@ export default function ChatThread({
               )}
               {suggesting ? "Drafting..." : "Suggest a reply"}
             </button>
+            )}
+            {tools}
             {note && <span className="text-xs text-warn-ink">{note}</span>}
           </div>
         )}
+        {panel}
         <div className="flex items-end gap-2">
           <textarea
             ref={inputRef}

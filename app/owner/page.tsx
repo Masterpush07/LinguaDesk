@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import ChatThread from "@/components/ChatThread";
+import OrderBuilder from "@/components/OrderBuilder";
 import ThemeToggle from "@/components/ThemeToggle";
 import { connect, getOwnerSession, savedOwnerSession, signOutOwner } from "@/lib/nexconn-client";
 import { useOwnerInbox, useOwnerThread, type OwnerConversation } from "@/lib/use-owner";
@@ -101,7 +102,8 @@ function BackButton({ onClick }: { onClick: () => void }) {
 }
 
 function OwnerThread({ peerId, onChanged, onBack }: { peerId: string; onChanged: () => void; onBack: () => void }) {
-  const { conversation, messages, connected, send, suggest, handBack } = useOwnerThread(peerId, onChanged);
+  const { conversation, messages, connected, send, suggest, sendOrder, handBack } = useOwnerThread(peerId, onChanged);
+  const [orderOpen, setOrderOpen] = useState(false);
   const language = conversation?.language;
   const translated = !!language && !/^english$/i.test(language);
   return (
@@ -114,6 +116,17 @@ function OwnerThread({ peerId, onChanged, onBack }: { peerId: string; onChanged:
       connected={connected}
       onSend={send}
       onSuggest={suggest}
+      tools={
+        <button
+          type="button"
+          onClick={() => setOrderOpen((open) => !open)}
+          aria-expanded={orderOpen}
+          className="inline-flex items-center gap-1.5 rounded-full bg-brand-soft px-3 py-1.5 text-xs font-medium text-brand-ink ring-1 ring-line transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60"
+        >
+          Create order
+        </button>
+      }
+      panel={orderOpen && <OrderBuilder onSend={sendOrder} onClose={() => setOrderOpen(false)} />}
       placeholder={translated ? `Reply in English. It is sent in ${language}.` : "Reply to the customer"}
     />
   );

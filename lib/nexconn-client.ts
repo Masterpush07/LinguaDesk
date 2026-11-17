@@ -1,4 +1,5 @@
 import type { Message } from "@nexconn/chat";
+import { parseOrderCard, type OrderCard } from "@/lib/catalog";
 
 // Browser-only wrapper around the Nexconn Web SDK, shared by the customer chat and the owner dashboard.
 
@@ -13,6 +14,8 @@ export type ChatMessage = {
   translation?: string; // English version shown to the owner under a customer's message
   translationLabel?: string;
   numberWarning?: boolean; // the numbers in the translation differ from the original
+  order?: OrderCard; // set when the message carries an order card in its metadata
+  confirmsOrder?: string; // set on the automatic message that confirms an order, so its card can show "confirmed"
 };
 export type Conversation = {
   peerId: string;
@@ -41,6 +44,8 @@ function toChat(m: Message): ChatMessage | null {
     time: m.sentTime,
     mine: m.senderUserId === myId,
     ai: m.metadata?.get("ai") === "1", // set by the server when the bot wrote the message
+    order: parseOrderCard(m.metadata?.get("order")) ?? undefined,
+    confirmsOrder: m.metadata?.get("orderConfirmed") || undefined,
   };
 }
 

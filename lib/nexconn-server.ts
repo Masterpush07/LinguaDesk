@@ -83,8 +83,9 @@ export function sendDirectText(
   fromUserId: string,
   toUserId: string,
   text: string,
-  options: { ai?: boolean } = {},
+  options: { ai?: boolean; metadata?: Record<string, string> } = {},
 ) {
+  const metadata = { ...(options.ai ? { ai: "1" } : {}), ...options.metadata }; // ai: lets the UI label AI-written messages
   return nexconnPost<{ messageIds?: { userId: string; messageId: string }[] }>(
     "/v4/direct-channel/message/send",
     {
@@ -93,7 +94,7 @@ export function sendDirectText(
       messageType: "RC:TxtMsg",
       content: JSON.stringify({ content: text }), // wire format uses "content", the client SDK maps it to "text"
       isEchoToSender: 1, // also show it on the sender's own devices, e.g. the owner dashboard
-      ...(options.ai ? { hasMetadata: true, metadata: { ai: "1" } } : {}), // lets the UI label AI-written messages
+      ...(Object.keys(metadata).length > 0 ? { hasMetadata: true, metadata } : {}),
     },
   );
 }
