@@ -1,6 +1,7 @@
 // Server-only Gemini client. Tries the main model, then a fallback, because free-tier limits can reject a request.
-// Best quality first; the lite models take over when the free quota or an outage rejects a call.
-const MODELS = ["gemini-3.6-flash", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite"];
+// Free-tier daily limits (AI Studio): lite models 500 requests/day each, 3.6 Flash only 20. So lite goes first
+// and the two lite quotas add up; the stronger model is a last resort when both are exhausted.
+const MODELS = ["gemini-3.5-flash-lite", "gemini-3.1-flash-lite", "gemini-3.6-flash"];
 
 export async function generateJson<T>(
   system: string,

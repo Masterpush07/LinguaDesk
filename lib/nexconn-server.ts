@@ -74,7 +74,7 @@ export function issueAccessToken(userId: string, name: string) {
 
 // Sends a plain text message as fromUserId, e.g. the shop's bot answering a customer.
 export function sendDirectText(fromUserId: string, toUserId: string, text: string, options: { ai?: boolean } = {}) {
-  return nexconnPost("/v4/direct-channel/message/send", {
+  return nexconnPost<{ messageIds?: { userId: string; messageId: string }[] }>("/v4/direct-channel/message/send", {
     fromUserId,
     toUserIds: [toUserId],
     messageType: "RC:TxtMsg",
