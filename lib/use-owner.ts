@@ -144,6 +144,18 @@ export function useOwnerThread(peerId: string, onChanged: () => void) {
     [peerId, refresh],
   );
 
+  // On-demand AI draft of the owner's next reply; it only fills the message box and is never sent on its own.
+  const suggest = useCallback(async () => {
+    const res = await fetch("/api/owner/suggest", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ customerId: peerId }),
+    });
+    const body = (await res.json().catch(() => null)) as { draft?: string; note?: string; error?: string } | null;
+    if (!res.ok || !body?.draft) throw new Error(body?.error ?? `Could not draft a reply (${res.status})`);
+    return { text: body.draft, note: body.note };
+  }, [peerId]);
+
   const handBack = useCallback(async () => {
     await getJson(`/api/owner/conversations/${peerId}`, { method: "POST" });
     refresh();
@@ -154,6 +166,7 @@ export function useOwnerThread(peerId: string, onChanged: () => void) {
     messages,
     connected,
     send,
+    suggest,
     handBack,
   };
 }

@@ -100,7 +100,7 @@ function BackButton({ onClick }: { onClick: () => void }) {
 }
 
 function OwnerThread({ peerId, onChanged, onBack }: { peerId: string; onChanged: () => void; onBack: () => void }) {
-  const { conversation, messages, connected, send, handBack } = useOwnerThread(peerId, onChanged);
+  const { conversation, messages, connected, send, suggest, handBack } = useOwnerThread(peerId, onChanged);
   const language = conversation?.language;
   const translated = !!language && !/^english$/i.test(language);
   return (
@@ -112,6 +112,7 @@ function OwnerThread({ peerId, onChanged, onBack }: { peerId: string; onChanged:
       messages={messages}
       connected={connected}
       onSend={send}
+      onSuggest={suggest}
       placeholder={translated ? `Reply in English. It is sent in ${language}.` : "Reply to the customer"}
     />
   );

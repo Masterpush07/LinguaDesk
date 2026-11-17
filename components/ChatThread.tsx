@@ -13,6 +13,7 @@ type Props = {
   messages: ChatMessage[];
   connected: boolean;
   onSend: (text: string) => Promise<void>;
+  onSuggest?: () => Promise<{ text: string; note?: string }>; // owner only: drafts a reply into the message box
   placeholder?: string;
   footnote?: string;
   typing?: boolean;
@@ -87,6 +88,7 @@ export default function ChatThread({
   messages,
   connected,
   onSend,
+  onSuggest,
   placeholder = "Type a message",
   footnote,
   typing = false,
@@ -97,6 +99,8 @@ export default function ChatThread({
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
+  const [suggesting, setSuggesting] = useState(false);
+  const [note, setNote] = useState("");
   const [atBottom, setAtBottom] = useState(true);
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -131,6 +135,23 @@ export default function ChatThread({
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" });
   }
 
+  async function suggest() {
+    if (!onSuggest || suggesting) return;
+    setSuggesting(true);
+    setError("");
+    setNote("");
+    try {
+      const draft = await onSuggest();
+      setText(draft.text.slice(0, MAX_LENGTH));
+      setNote(draft.note ?? "");
+      inputRef.current?.focus();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not draft a reply.");
+    } finally {
+      setSuggesting(false);
+    }
+  }
+
   async function deliver(raw: string) {
     const value = raw.trim();
     if (!value || sending) return;
@@ -140,6 +161,7 @@ export default function ChatThread({
     try {
       await onSend(value);
       setText("");
+      setNote("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not send. Please try again.");
     } finally {
@@ -274,6 +296,26 @@ export default function ChatThread({
           <p role="alert" className="mb-2 rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger-ink">
             {error}
           </p>
+        )}
+        {onSuggest && (
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => void suggest()}
+              disabled={suggesting || sending}
+              className="inline-flex items-center gap-1.5 rounded-full bg-ai-soft px-3 py-1.5 text-xs font-medium text-ai-ink ring-1 ring-ai-line transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60 disabled:opacity-60"
+            >
+              {suggesting ? (
+                <span className="h-3 w-3 animate-spin rounded-full border-2 border-ai-ink/30 border-t-ai-ink" />
+              ) : (
+                <svg viewBox="0 0 24 24" className="h-3 w-3" fill="currentColor" aria-hidden="true">
+                  <path d="M12 2l1.9 6.1L20 10l-6.1 1.9L12 18l-1.9-6.1L4 10l6.1-1.9L12 2z" />
+                </svg>
+              )}
+              {suggesting ? "Drafting..." : "Suggest a reply"}
+            </button>
+            {note && <span className="text-xs text-warn-ink">{note}</span>}
+          </div>
         )}
         <div className="flex items-end gap-2">
           <textarea
