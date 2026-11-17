@@ -3,7 +3,15 @@ import type { Message } from "@nexconn/chat";
 // Browser-only wrapper around the Nexconn Web SDK, shared by the customer chat and the owner dashboard.
 
 export type Session = { userId: string; token: string };
-export type ChatMessage = { id: string; from: string; text: string; time: number; mine: boolean; ai: boolean };
+export type ChatMessage = {
+  id: string;
+  from: string;
+  text: string;
+  time: number;
+  mine: boolean;
+  ai: boolean;
+  translation?: string; // English version shown to the owner under a customer's message
+};
 export type Conversation = { peerId: string; unread: number; lastText: string; time: number };
 
 type Sdk = typeof import("@nexconn/chat");

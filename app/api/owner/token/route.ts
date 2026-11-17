@@ -1,6 +1,7 @@
 import { createHash, timingSafeEqual } from "crypto";
 import { NextResponse, type NextRequest } from "next/server";
 import { issueAccessToken } from "@/lib/nexconn-server";
+import { setOwnerCookie } from "@/lib/owner-auth";
 import { SHOP_ID, SHOP_NAME } from "@/lib/shop";
 
 // Hashing first gives both sides equal length, which timingSafeEqual requires.
@@ -22,6 +23,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const { accessToken } = await issueAccessToken(SHOP_ID, SHOP_NAME);
+    await setOwnerCookie();
     return NextResponse.json({ userId: SHOP_ID, token: accessToken });
   } catch (err) {
     console.error("owner token issue failed:", err instanceof Error ? err.message : err);

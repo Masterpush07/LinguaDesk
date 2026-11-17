@@ -3,64 +3,91 @@
 import { useEffect, useState } from "react";
 import ChatThread from "@/components/ChatThread";
 import { connect, getOwnerSession, savedOwnerSession, signOutOwner } from "@/lib/nexconn-client";
-import { useConversation, useConversations } from "@/lib/use-chat";
+import { useOwnerInbox, useOwnerThread, type OwnerConversation } from "@/lib/use-owner";
 
-function OwnerThread({ peerId, onSent }: { peerId: string; onSent: () => void }) {
-  const { messages, connected, send } = useConversation(peerId, true);
+const STATUS_LABEL: Record<OwnerConversation["status"], { text: string; className: string }> = {
+  waiting: { text: "Needs you", className: "bg-amber-100 text-amber-800" },
+  human: { text: "You", className: "bg-green-100 text-green-800" },
+  ai: { text: "AI", className: "bg-gray-100 text-gray-600" },
+};
+
+function customerName(id: string) {
+  return `Customer ${id.slice(-6)}`;
+}
+
+function InfoBar({ conversation, onHandBack }: { conversation: OwnerConversation; onHandBack: () => void }) {
+  const label = STATUS_LABEL[conversation.status];
   return (
-    <ChatThread
-      title={`Customer ${peerId.slice(-6)}`}
-      messages={messages}
-      connected={connected}
-      onSend={async (text) => {
-        await send(text);
-        onSent();
-      }}
-    />
+    <div className="flex items-start justify-between gap-3 border-b border-gray-200 bg-white px-4 py-2 text-sm">
+      <div className="min-w-0">
+        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${label.className}`}>{label.text}</span>
+        {conversation.language && <span className="ml-2 text-xs text-gray-500">{conversation.language}</span>}
+        {conversation.summary && <p className="mt-1 text-gray-700">AI summary: {conversation.summary}</p>}
+        {conversation.status === "ai" && <p className="mt-1 text-gray-500">The AI assistant is answering this customer.</p>}
+      </div>
+      {conversation.status !== "ai" && (
+        <button onClick={onHandBack} className="shrink-0 rounded border border-gray-300 px-3 py-1 text-xs text-gray-700 hover:bg-gray-50">
+          Hand back to AI
+        </button>
+      )}
+    </div>
+  );
+}
+
+function OwnerThread({ peerId, onChanged }: { peerId: string; onChanged: () => void }) {
+  const { conversation, messages, connected, send, handBack } = useOwnerThread(peerId, onChanged);
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      {conversation && <InfoBar conversation={conversation} onHandBack={handBack} />}
+      <div className="min-h-0 flex-1">
+        <ChatThread title={customerName(peerId)} messages={messages} connected={connected} onSend={send} />
+      </div>
+    </div>
   );
 }
 
 function Dashboard() {
-  const { conversations, refresh } = useConversations();
+  const { conversations, error, refresh } = useOwnerInbox();
   const [selected, setSelected] = useState<string | null>(null);
+
+  async function signOut() {
+    await fetch("/api/owner/logout", { method: "POST" });
+    signOutOwner();
+    location.reload();
+  }
 
   return (
     <div className="flex h-screen bg-white text-gray-900">
-      <aside className="w-72 shrink-0 overflow-y-auto border-r border-gray-200">
+      <aside className="w-80 shrink-0 overflow-y-auto border-r border-gray-200">
         <h1 className="border-b border-gray-200 px-4 py-3 font-semibold">Conversations</h1>
-        <button
-          className="w-full border-b border-gray-200 px-4 py-2 text-left text-xs text-gray-500 hover:bg-gray-50"
-          onClick={() => {
-            signOutOwner();
-            location.reload();
-          }}
-        >
+        <button onClick={signOut} className="w-full border-b border-gray-200 px-4 py-2 text-left text-xs text-gray-500 hover:bg-gray-50">
           Sign out
         </button>
-        {conversations.length === 0 && <p className="p-4 text-sm text-gray-500">No customers yet.</p>}
+        {error && <p className="p-4 text-sm text-red-600">{error}</p>}
+        {!error && conversations.length === 0 && <p className="p-4 text-sm text-gray-500">No customers yet.</p>}
         {conversations.map((c) => (
           <button
-            key={c.peerId}
-            onClick={() => setSelected(c.peerId)}
+            key={c.customer_id}
+            onClick={() => setSelected(c.customer_id)}
             className={`block w-full border-b border-gray-100 px-4 py-3 text-left hover:bg-gray-50 ${
-              selected === c.peerId ? "bg-indigo-50" : ""
+              selected === c.customer_id ? "bg-indigo-50" : ""
             }`}
           >
-            <div className="flex items-center justify-between">
-              <span className="font-medium">Customer {c.peerId.slice(-6)}</span>
-              {c.unread > 0 && selected !== c.peerId && (
-                <span className="rounded-full bg-indigo-600 px-2 text-xs text-white">{c.unread}</span>
-              )}
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-medium">{customerName(c.customer_id)}</span>
+              <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${STATUS_LABEL[c.status].className}`}>
+                {STATUS_LABEL[c.status].text}
+              </span>
             </div>
             <p dir="auto" className="truncate text-sm text-gray-500">
-              {c.lastText}
+              {c.last_text}
             </p>
           </button>
         ))}
       </aside>
       <section className="min-w-0 flex-1">
         {selected ? (
-          <OwnerThread key={selected} peerId={selected} onSent={refresh} />
+          <OwnerThread key={selected} peerId={selected} onChanged={refresh} />
         ) : (
           <p className="p-6 text-gray-500">Select a conversation.</p>
         )}

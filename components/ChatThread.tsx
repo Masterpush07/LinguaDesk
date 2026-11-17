@@ -63,6 +63,9 @@ export default function ChatThread({ title, messages, connected, onSend, footnot
               <p dir="auto" className="whitespace-pre-wrap break-words">
                 {m.text}
               </p>
+              {m.translation && (
+                <p className="mt-1 border-t border-gray-200 pt-1 text-xs italic text-gray-500">EN: {m.translation}</p>
+              )}
               <p className={m.mine ? "mt-1 text-right text-[10px] text-indigo-200" : "mt-1 text-[10px] text-gray-400"}>
                 {new Date(m.time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
               </p>
