@@ -39,6 +39,13 @@ const statements = [
     created_at timestamptz NOT NULL DEFAULT now(),
     confirmed_at timestamptz
   )`,
+  // One row per rate-limited event (failed login, new guest session); counted per key and time window.
+  `CREATE TABLE IF NOT EXISTS rate_events (
+    id bigserial PRIMARY KEY,
+    key text NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now()
+  )`,
+  `CREATE INDEX IF NOT EXISTS rate_events_key_idx ON rate_events (key, created_at)`,
 ];
 
 for (const statement of statements) await sql.query(statement);
