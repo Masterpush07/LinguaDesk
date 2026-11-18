@@ -154,8 +154,13 @@ export function useOwnerThread(peerId: string, onChanged: () => void) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ customerId: peerId }),
     });
-    const body = (await res.json().catch(() => null)) as { draft?: string; note?: string; error?: string } | null;
-    if (!res.ok || !body?.draft) throw new Error(body?.error ?? `Could not draft a reply (${res.status})`);
+    const body = (await res.json().catch(() => null)) as {
+      draft?: string;
+      note?: string;
+      error?: string;
+    } | null;
+    if (!res.ok || !body?.draft)
+      throw new Error(body?.error ?? `Could not draft a reply (${res.status})`);
     return { text: body.draft, note: body.note };
   }, [peerId]);
 
@@ -168,8 +173,12 @@ export function useOwnerThread(peerId: string, onChanged: () => void) {
         body: JSON.stringify({ customerId: peerId, lines }),
       });
       if (!res.ok) {
-        const body = (await res.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(body?.error ?? `Could not send the order (${res.status})`);
+        const body = (await res.json().catch(() => null)) as {
+          error?: string;
+        } | null;
+        throw new Error(
+          body?.error ?? `Could not send the order (${res.status})`,
+        );
       }
       refresh();
     },

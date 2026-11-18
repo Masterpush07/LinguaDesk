@@ -1,9 +1,10 @@
-import { generateReply, type BotReply } from "@/lib/bot-ai";
+import { generateReply, type BotReply, type HistoryItem } from "@/lib/bot-ai";
 import { db } from "@/lib/db";
 import { sendDirectText } from "@/lib/nexconn-server";
 import { onlyKnownNumbers } from "@/lib/number-check";
 import { SHOP_ID } from "@/lib/shop";
-import { SHOP_KB } from "@/lib/shop-kb";
+import { buildKnowledge } from "@/lib/shop-data";
+import { getShop } from "@/lib/shop-store";
 
 type WebhookMessage = {
   userId: string;
@@ -81,15 +82,31 @@ async function answerCustomer(
     FROM conversations WHERE customer_id = ${customerId}`;
 
   // One AI call gives the answer, the English text for the owner and the handoff decision.
+  const kb = buildKnowledge(await getShop());
+  // The last few messages let the AI understand follow-ups like "and in blue?". The current message is not stored yet.
+  const recent = await sql`SELECT sender, text, text_en FROM messages
+    WHERE customer_id = ${customerId} ORDER BY created_at DESC LIMIT 8`;
+  const history: HistoryItem[] = recent.reverse().map((r) => ({
+    from:
+      r.sender === "customer"
+        ? "customer"
+        : r.sender === "owner"
+          ? "shop_owner"
+          : "shop_ai",
+    text: r.text_en ?? r.text,
+  }));
   let reply: BotReply | null = null;
   try {
-    reply = await generateReply(text);
+    reply = await generateReply(text, { kb, history });
   } catch (err) {
     console.error("AI reply failed:", err instanceof Error ? err.message : err);
   }
 
-  // A price or date that is neither in the shop info nor in the customer's message never reaches the customer.
-  if (reply && !onlyKnownNumbers(reply.answer, SHOP_KB, text)) {
+  // A price or date that is neither in the shop info, the customer's message nor something the shop already said never reaches the customer.
+  const shopSaid = history
+    .filter((h) => h.from !== "customer")
+    .map((h) => h.text);
+  if (reply && !onlyKnownNumbers(reply.answer, kb, text, ...shopSaid)) {
     console.error("AI answer blocked, unknown number:", reply.answer);
     reply = {
       ...reply,
@@ -107,7 +124,9 @@ async function answerCustomer(
   // While the owner is actively replying the bot stays silent; once they go quiet it takes over again.
   let status: string = conversation.status;
   if (status === "human") {
-    const ownerIsActive = typeof conversation.owner_idle_min === "number" && conversation.owner_idle_min < OWNER_IDLE_MINUTES;
+    const ownerIsActive =
+      typeof conversation.owner_idle_min === "number" &&
+      conversation.owner_idle_min < OWNER_IDLE_MINUTES;
     if (ownerIsActive) return;
     status = "ai";
     await sql`UPDATE conversations SET status = 'ai', summary = NULL WHERE customer_id = ${customerId}`;

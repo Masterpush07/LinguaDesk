@@ -2,10 +2,17 @@
 
 import { useCallback, useEffect, useState } from "react";
 import ChatThread from "@/components/ChatThread";
+import ShopInfoSheet from "@/components/ShopInfoSheet";
 import ThemeToggle from "@/components/ThemeToggle";
-import { connect, forgetGuest, getGuestSession, type ChatMessage } from "@/lib/nexconn-client";
+import {
+  connect,
+  forgetGuest,
+  getGuestSession,
+  type ChatMessage,
+} from "@/lib/nexconn-client";
 import { SHOP_ID, SHOP_NAME } from "@/lib/shop";
 import { useConversation } from "@/lib/use-chat";
+import { useShop } from "@/lib/use-shop";
 
 // Tapping one sends it as the first message; the mix of languages shows off translation right away.
 const SUGGESTIONS = [
@@ -40,6 +47,8 @@ function useAssistantTyping(messages: ChatMessage[]) {
 function ShopChat({ customerId }: { customerId: string }) {
   const { messages, connected, send } = useConversation(SHOP_ID);
   const typing = useAssistantTyping(messages);
+  const shop = useShop();
+  const [aboutOpen, setAboutOpen] = useState(false);
   // Tapping "Confirm order" on a card tells the server, which alerts the shop owner once.
   const confirmOrder = useCallback(
     async (orderId: string) => {
@@ -48,32 +57,66 @@ function ShopChat({ customerId }: { customerId: string }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ customerId, orderId }),
       });
-      if (!res.ok) throw new Error("Could not confirm the order. Please try again.");
+      if (!res.ok)
+        throw new Error("Could not confirm the order. Please try again.");
     },
     [customerId],
   );
   return (
-    <ChatThread
-      onConfirmOrder={confirmOrder}
-      title={SHOP_NAME}
-      subtitle="AI-assisted support · write in any language"
-      peerLabel="Shop team"
-      actions={<ThemeToggle />}
-      messages={messages}
-      connected={connected}
-      onSend={send}
-      typing={typing}
-      suggestions={SUGGESTIONS}
-      emptyTitle="Hi! How can we help?"
-      emptyText="Ask about products, prices, shipping or returns. We reply in your language."
-      footnote="Replies may be written by AI (Google Gemini, or Groq as a backup). Please don't share sensitive information."
-    />
+    <>
+      <ChatThread
+        onConfirmOrder={confirmOrder}
+        title={shop?.name ?? SHOP_NAME}
+        subtitle="AI-assisted support · write in any language"
+        peerLabel="Shop team"
+        actions={
+          <>
+            {shop && (
+              <button
+                onClick={() => setAboutOpen(true)}
+                aria-label="About this shop: what you can ask"
+                className="flex h-9 items-center gap-1.5 rounded-full px-3 text-xs font-medium text-ink-2 transition hover:bg-surface-3 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60"
+              >
+                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <circle cx="12" cy="12" r="9" />
+                  <path d="M12 11v5M12 8h.01" />
+                </svg>
+                About
+              </button>
+            )}
+            <ThemeToggle />
+          </>
+        }
+        messages={messages}
+        connected={connected}
+        onSend={send}
+        typing={typing}
+        suggestions={SUGGESTIONS}
+        emptyTitle="Hi! How can we help?"
+        emptyText="Ask about products, colours, prices, shipping or returns. We reply in your language."
+        footnote="Replies may be written by AI (Google Gemini, or Groq as a backup). Please don't share sensitive information."
+      />
+      {aboutOpen && shop && (
+        <ShopInfoSheet
+          shop={shop}
+          onClose={() => setAboutOpen(false)}
+          onAsk={(question) => {
+            setAboutOpen(false);
+            void send(question).catch(() => {});
+          }}
+        />
+      )}
+    </>
   );
 }
 
 function ChatSkeleton() {
   return (
-    <div className="flex h-full flex-col" aria-busy="true" aria-label="Connecting to chat">
+    <div
+      className="flex h-full flex-col"
+      aria-busy="true"
+      aria-label="Connecting to chat"
+    >
       <div className="flex items-center gap-3 border-b border-line-soft px-4 py-3">
         <div className="h-10 w-10 animate-pulse rounded-full bg-surface-3" />
         <div className="space-y-2">
@@ -93,11 +136,18 @@ function ChatSkeleton() {
 function ConnectionError({ message }: { message: string }) {
   return (
     <div className="flex h-full flex-col items-center justify-center bg-surface px-8 text-center">
-      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-danger-soft text-xl" aria-hidden="true">
+      <div
+        className="flex h-12 w-12 items-center justify-center rounded-full bg-danger-soft text-xl"
+        aria-hidden="true"
+      >
         &#9888;
       </div>
-      <h1 className="mt-4 text-lg font-semibold text-ink">We couldn&apos;t connect</h1>
-      <p className="mt-1 text-sm text-ink-2">Check your internet connection and try again.</p>
+      <h1 className="mt-4 text-lg font-semibold text-ink">
+        We couldn&apos;t connect
+      </h1>
+      <p className="mt-1 text-sm text-ink-2">
+        Check your internet connection and try again.
+      </p>
       <p className="mt-2 max-w-full truncate text-xs text-ink-3">{message}</p>
       <button
         className="mt-5 rounded-full bg-brand px-5 py-2.5 text-sm font-medium text-white hover:bg-brand-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60 focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
@@ -126,8 +176,14 @@ export default function ChatPage() {
 
   return (
     <main className="flex min-h-dvh justify-center bg-gradient-to-b from-brand-soft via-surface to-surface text-ink sm:items-center sm:p-6">
-      <div className="h-dvh w-full max-w-md overflow-hidden bg-surface sm:h-[min(760px,calc(100dvh-3rem))] sm:rounded-2xl sm:shadow-xl sm:ring-1 sm:ring-line">
-        {customerId ? <ShopChat customerId={customerId} /> : error ? <ConnectionError message={error} /> : <ChatSkeleton />}
+      <div className="relative h-dvh w-full max-w-md overflow-hidden bg-surface sm:h-[min(760px,calc(100dvh-3rem))] sm:rounded-2xl sm:shadow-xl sm:ring-1 sm:ring-line">
+        {customerId ? (
+          <ShopChat customerId={customerId} />
+        ) : error ? (
+          <ConnectionError message={error} />
+        ) : (
+          <ChatSkeleton />
+        )}
       </div>
     </main>
   );

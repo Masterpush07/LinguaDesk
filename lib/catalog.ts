@@ -1,15 +1,7 @@
-// Shared by server and browser: the shop's products and the single function that prices an order.
-// Prices here must match SHOP_KB (lib/shop-kb.ts), which is what the AI quotes in chat.
+// Shared by server and browser: the single function that prices an order, and the order card format.
+// Products and shipping rules come from the shop's own settings (lib/shop-data.ts), never from the AI.
+import type { ShopOrderInfo } from "@/lib/shop-data";
 
-export const PRODUCTS = [
-  { id: "cotton-saree", name: "Cotton saree", price: 45 },
-  { id: "silk-cotton-saree", name: "Silk-cotton saree", price: 78 },
-  { id: "scarf", name: "Scarf", price: 18 },
-  { id: "tote-bag", name: "Tote bag", price: 12 },
-] as const;
-
-export const FREE_SHIPPING_ABOVE = 60;
-export const SHIPPING_FEE = 6;
 const MAX_LINES = 8;
 const MAX_QTY = 20;
 
@@ -17,8 +9,8 @@ export type OrderLine = { id: string; qty: number };
 export type PricedLine = { id: string; name: string; qty: number; unit: number; amount: number };
 export type Priced = { lines: PricedLine[]; subtotal: number; shipping: number; total: number };
 
-// Totals are always computed here in code, never by the AI. Returns null for anything invalid.
-export function priceOrder(input: unknown): Priced | null {
+// Totals are always computed here in code, never by the AI. Returns null for anything invalid or out of stock.
+export function priceOrder(input: unknown, shop: ShopOrderInfo): Priced | null {
   if (!Array.isArray(input) || input.length === 0 || input.length > MAX_LINES) return null;
   const qtyById = new Map<string, number>();
   for (const line of input as OrderLine[]) {
@@ -27,12 +19,13 @@ export function priceOrder(input: unknown): Priced | null {
   }
   const lines: PricedLine[] = [];
   for (const [id, qty] of qtyById) {
-    const product = PRODUCTS.find((p) => p.id === id);
-    if (!product || qty > MAX_QTY) return null;
+    const product = shop.products.find((p) => p.id === id);
+    if (!product || !product.inStock || qty > MAX_QTY) return null;
     lines.push({ id, name: product.name, qty, unit: product.price, amount: product.price * qty });
   }
   const subtotal = lines.reduce((sum, l) => sum + l.amount, 0);
-  const shipping = subtotal > FREE_SHIPPING_ABOVE ? 0 : SHIPPING_FEE;
+  const { freeAbove, fee } = shop.shipping;
+  const shipping = freeAbove > 0 && subtotal > freeAbove ? 0 : fee;
   return { lines, subtotal, shipping, total: subtotal + shipping };
 }
 

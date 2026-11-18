@@ -94,7 +94,9 @@ export function sendDirectText(
       messageType: "RC:TxtMsg",
       content: JSON.stringify({ content: text }), // wire format uses "content", the client SDK maps it to "text"
       isEchoToSender: 1, // also show it on the sender's own devices, e.g. the owner dashboard
-      ...(Object.keys(metadata).length > 0 ? { hasMetadata: true, metadata } : {}),
+      ...(Object.keys(metadata).length > 0
+        ? { hasMetadata: true, metadata }
+        : {}),
     },
   );
 }

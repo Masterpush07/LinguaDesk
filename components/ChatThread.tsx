@@ -29,7 +29,12 @@ type Props = {
 const MAX_LENGTH = 1000; // the server trims AI input to the same length
 const GROUP_GAP_MS = 5 * 60 * 1000;
 
-type Row = { message: ChatMessage; startsGroup: boolean; endsGroup: boolean; dayLabel?: string };
+type Row = {
+  message: ChatMessage;
+  startsGroup: boolean;
+  endsGroup: boolean;
+  dayLabel?: string;
+};
 
 // Consecutive messages from the same sender within a few minutes share one visual group.
 function toRows(messages: ChatMessage[]): Row[] {
@@ -37,21 +42,41 @@ function toRows(messages: ChatMessage[]): Row[] {
     const prev = messages[i - 1];
     const next = messages[i + 1];
     const sameGroup = (a?: ChatMessage, b?: ChatMessage) =>
-      !!a && !!b && a.mine === b.mine && a.ai === b.ai && Math.abs(b.time - a.time) < GROUP_GAP_MS;
+      !!a &&
+      !!b &&
+      a.mine === b.mine &&
+      a.ai === b.ai &&
+      Math.abs(b.time - a.time) < GROUP_GAP_MS;
     const day = new Date(message.time).toDateString();
     const newDay = !prev || new Date(prev.time).toDateString() !== day;
     return {
       message,
       startsGroup: newDay || !sameGroup(prev, message),
-      endsGroup: !sameGroup(message, next) || new Date(next!.time).toDateString() !== day,
-      dayLabel: newDay ? new Date(message.time).toLocaleDateString([], { month: "short", day: "numeric" }) : undefined,
+      endsGroup:
+        !sameGroup(message, next) ||
+        new Date(next!.time).toDateString() !== day,
+      dayLabel: newDay
+        ? new Date(message.time).toLocaleDateString([], {
+            month: "short",
+            day: "numeric",
+          })
+        : undefined,
     };
   });
 }
 
 function SendIcon() {
   return (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg
+      viewBox="0 0 24 24"
+      className="h-5 w-5"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
       <path d="M12 19V5M5 12l7-7 7 7" />
     </svg>
   );
@@ -60,7 +85,12 @@ function SendIcon() {
 function AiBadge() {
   return (
     <span className="inline-flex items-center gap-1 rounded-full bg-ai-soft px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-ai-ink ring-1 ring-ai-line">
-      <svg viewBox="0 0 24 24" className="h-2.5 w-2.5" fill="currentColor" aria-hidden="true">
+      <svg
+        viewBox="0 0 24 24"
+        className="h-2.5 w-2.5"
+        fill="currentColor"
+        aria-hidden="true"
+      >
         <path d="M12 2l1.9 6.1L20 10l-6.1 1.9L12 18l-1.9-6.1L4 10l6.1-1.9L12 2z" />
       </svg>
       AI assistant
@@ -72,9 +102,16 @@ function TypingBubble() {
   return (
     <div className="bubble-in flex justify-start pt-2" role="status">
       <span className="sr-only">The assistant is typing</span>
-      <div className="flex items-center gap-1 rounded-2xl rounded-bl-md bg-ai-soft px-4 py-3 ring-1 ring-ai-line" aria-hidden="true">
+      <div
+        className="flex items-center gap-1 rounded-2xl rounded-bl-md bg-ai-soft px-4 py-3 ring-1 ring-ai-line"
+        aria-hidden="true"
+      >
         {[0, 150, 300].map((delay) => (
-          <span key={delay} className="h-1.5 w-1.5 animate-bounce rounded-full bg-ai-ink/60 motion-reduce:animate-none" style={{ animationDelay: `${delay}ms` }} />
+          <span
+            key={delay}
+            className="h-1.5 w-1.5 animate-bounce rounded-full bg-ai-ink/60 motion-reduce:animate-none"
+            style={{ animationDelay: `${delay}ms` }}
+          />
         ))}
       </div>
     </div>
@@ -113,7 +150,9 @@ function OrderCardView({
         </div>
         <div className="flex justify-between gap-4 text-ink-2">
           <dt>{L.shipping}</dt>
-          <dd className="tabular-nums">{card.shipping === 0 ? L.free : `$${card.shipping}`}</dd>
+          <dd className="tabular-nums">
+            {card.shipping === 0 ? L.free : `$${card.shipping}`}
+          </dd>
         </div>
         <div className="flex justify-between gap-4 text-base font-semibold">
           <dt>{L.total}</dt>
@@ -121,7 +160,9 @@ function OrderCardView({
         </div>
       </dl>
       {confirmed ? (
-        <p className="mt-3 rounded-lg bg-ok-soft px-3 py-2 text-center text-sm font-medium text-ok-ink">&#10003; {L.confirmed}</p>
+        <p className="mt-3 rounded-lg bg-ok-soft px-3 py-2 text-center text-sm font-medium text-ok-ink">
+          &#10003; {L.confirmed}
+        </p>
       ) : (
         onConfirm && (
           <button
@@ -176,8 +217,12 @@ export default function ChatThread({
   // Follow new messages only while the reader is already at the bottom, so scrolling back through history is never hijacked.
   useEffect(() => {
     const el = listRef.current;
-    if (!el || !stickToBottom.current || (messages.length === 0 && !typing)) return;
-    el.scrollTo({ top: el.scrollHeight, behavior: firstScroll.current ? "auto" : "smooth" });
+    if (!el || !stickToBottom.current || (messages.length === 0 && !typing))
+      return;
+    el.scrollTo({
+      top: el.scrollHeight,
+      behavior: firstScroll.current ? "auto" : "smooth",
+    });
     firstScroll.current = false;
   }, [messages, typing]);
 
@@ -198,7 +243,10 @@ export default function ChatThread({
   }
 
   function jumpToLatest() {
-    listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" });
+    listRef.current?.scrollTo({
+      top: listRef.current.scrollHeight,
+      behavior: "smooth",
+    });
   }
 
   async function suggest() {
@@ -226,7 +274,11 @@ export default function ChatThread({
       await onConfirmOrder(orderId);
       setConfirmedHere((prev) => [...prev, orderId]);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not confirm the order. Please try again.");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Could not confirm the order. Please try again.",
+      );
     } finally {
       setConfirming(null);
     }
@@ -243,7 +295,11 @@ export default function ChatThread({
       setText("");
       setNote("");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not send. Please try again.");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Could not send. Please try again.",
+      );
     } finally {
       setSending(false);
       inputRef.current?.focus();
@@ -260,22 +316,38 @@ export default function ChatThread({
 
   const rows = toRows(messages);
   // A card counts as confirmed once its automatic confirmation message is in the thread (survives reloads) or the customer just tapped it.
-  const confirmedIds = new Set([...confirmedHere, ...messages.flatMap((m) => (m.confirmsOrder ? [m.confirmsOrder] : []))]);
+  const confirmedIds = new Set([
+    ...confirmedHere,
+    ...messages.flatMap((m) => (m.confirmsOrder ? [m.confirmsOrder] : [])),
+  ]);
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-surface text-ink">
       <header className="flex items-center gap-2 border-b border-line-soft px-3 py-3 sm:px-4">
         {leading}
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 text-base font-semibold text-white" aria-hidden="true">
+        <div
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 text-base font-semibold text-white"
+          aria-hidden="true"
+        >
           {title.trim().charAt(0).toUpperCase()}
         </div>
         <div className="min-w-0 flex-1 pl-1">
-          <h2 className="truncate text-[15px] font-semibold leading-tight">{title}</h2>
-          {subtitle && <p className="truncate text-xs text-ink-2">{subtitle}</p>}
+          <h2 className="truncate text-[15px] font-semibold leading-tight">
+            {title}
+          </h2>
+          {subtitle && (
+            <p className="truncate text-xs text-ink-2">{subtitle}</p>
+          )}
         </div>
-        <span className={`flex items-center gap-1.5 text-xs font-medium ${connected ? "text-ok-ink" : "text-warn-ink"}`}>
-          <span className={`h-2 w-2 rounded-full ${connected ? "bg-emerald-500" : "animate-pulse bg-amber-500"}`} />
-          <span className="hidden sm:inline">{connected ? "Online" : "Reconnecting"}</span>
+        <span
+          className={`flex items-center gap-1.5 text-xs font-medium ${connected ? "text-ok-ink" : "text-warn-ink"}`}
+        >
+          <span
+            className={`h-2 w-2 rounded-full ${connected ? "bg-emerald-500" : "animate-pulse bg-amber-500"}`}
+          />
+          <span className="hidden sm:inline">
+            {connected ? "Online" : "Reconnecting"}
+          </span>
         </span>
         {actions}
       </header>
@@ -293,7 +365,10 @@ export default function ChatThread({
         >
           {rows.length === 0 && (
             <div className="mx-auto flex max-w-xs flex-col items-center px-2 py-10 text-center">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-brand-soft text-xl" aria-hidden="true">
+              <div
+                className="flex h-12 w-12 items-center justify-center rounded-full bg-brand-soft text-xl"
+                aria-hidden="true"
+              >
                 &#128172;
               </div>
               <h3 className="mt-4 text-base font-semibold">{emptyTitle}</h3>
@@ -319,16 +394,40 @@ export default function ChatThread({
 
           {rows.map(({ message: m, startsGroup, endsGroup, dayLabel }) => (
             <div key={m.id}>
-              {dayLabel && <p className="my-3 text-center text-[11px] font-medium text-ink-3">{dayLabel}</p>}
-              <div className={`bubble-in flex flex-col ${m.mine ? "items-end" : "items-start"} ${startsGroup && !dayLabel ? "pt-2" : ""}`}>
+              {dayLabel && (
+                <p className="my-3 text-center text-[11px] font-medium text-ink-3">
+                  {dayLabel}
+                </p>
+              )}
+              <div
+                className={`bubble-in flex flex-col ${m.mine ? "items-end" : "items-start"} ${startsGroup && !dayLabel ? "pt-2" : ""}`}
+              >
                 {startsGroup && (m.ai || (!m.mine && peerLabel)) && (
-                  <div className="mb-1 px-1">{m.ai ? <AiBadge /> : <span className="text-[11px] font-medium text-ink-2">{peerLabel}</span>}</div>
+                  <div className="mb-1 px-1">
+                    {m.ai ? (
+                      <AiBadge />
+                    ) : (
+                      <span className="text-[11px] font-medium text-ink-2">
+                        {peerLabel}
+                      </span>
+                    )}
+                  </div>
                 )}
                 <div
                   className={[
                     "max-w-[82%] rounded-2xl px-3.5 py-2 text-[15px] leading-relaxed sm:max-w-[75%]",
-                    m.mine ? "bg-brand text-white" : m.ai ? "bg-ai-soft text-ink ring-1 ring-ai-line" : "bg-surface text-ink ring-1 ring-line",
-                    m.mine ? (endsGroup ? "rounded-br-md" : "") : endsGroup ? "rounded-bl-md" : "",
+                    m.mine
+                      ? "bg-brand text-white"
+                      : m.ai
+                        ? "bg-ai-soft text-ink ring-1 ring-ai-line"
+                        : "bg-surface text-ink ring-1 ring-line",
+                    m.mine
+                      ? endsGroup
+                        ? "rounded-br-md"
+                        : ""
+                      : endsGroup
+                        ? "rounded-bl-md"
+                        : "",
                   ].join(" ")}
                 >
                   {/* dir="auto" lets Arabic and other right-to-left text lay out correctly. */}
@@ -337,7 +436,11 @@ export default function ChatThread({
                       card={m.order}
                       confirmed={confirmedIds.has(m.order.id)}
                       busy={confirming === m.order.id}
-                      onConfirm={onConfirmOrder && !m.mine ? () => void confirmOrder(m.order!.id) : undefined}
+                      onConfirm={
+                        onConfirmOrder && !m.mine
+                          ? () => void confirmOrder(m.order!.id)
+                          : undefined
+                      }
                     />
                   ) : (
                     <p dir="auto" className="whitespace-pre-wrap break-words">
@@ -345,19 +448,29 @@ export default function ChatThread({
                     </p>
                   )}
                   {m.translation && (
-                    <p dir="auto" className={`mt-1.5 border-t pt-1.5 text-xs ${m.mine ? "border-white/25 text-white/80" : "border-line text-ink-2"}`}>
-                      <span className="font-semibold">{m.translationLabel ?? "English"}:</span> {m.translation}
+                    <p
+                      dir="auto"
+                      className={`mt-1.5 border-t pt-1.5 text-xs ${m.mine ? "border-white/25 text-white/80" : "border-line text-ink-2"}`}
+                    >
+                      <span className="font-semibold">
+                        {m.translationLabel ?? "English"}:
+                      </span>{" "}
+                      {m.translation}
                     </p>
                   )}
                   {m.numberWarning && (
                     <p className="mt-1.5 rounded-md bg-warn-soft px-2 py-1 text-xs font-medium text-warn-ink ring-1 ring-warn-line">
-                      Numbers may not match the original. Verify before replying.
+                      Numbers may not match the original. Verify before
+                      replying.
                     </p>
                   )}
                 </div>
                 {endsGroup && (
                   <p className="mt-1 px-1 text-[11px] text-ink-3">
-                    {new Date(m.time).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+                    {new Date(m.time).toLocaleTimeString([], {
+                      hour: "numeric",
+                      minute: "2-digit",
+                    })}
                   </p>
                 )}
               </div>
@@ -384,7 +497,10 @@ export default function ChatThread({
         className="border-t border-line-soft bg-surface px-3 pb-3 pt-2.5 sm:px-4"
       >
         {error && (
-          <p role="alert" className="mb-2 rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger-ink">
+          <p
+            role="alert"
+            className="mb-2 rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger-ink"
+          >
             {error}
           </p>
         )}
@@ -392,20 +508,25 @@ export default function ChatThread({
           <div className="mb-2 flex flex-wrap items-center gap-2">
             {onSuggest && (
               <button
-              type="button"
-              onClick={() => void suggest()}
-              disabled={suggesting || sending}
-              className="inline-flex items-center gap-1.5 rounded-full bg-ai-soft px-3 py-1.5 text-xs font-medium text-ai-ink ring-1 ring-ai-line transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60 disabled:opacity-60"
-            >
-              {suggesting ? (
-                <span className="h-3 w-3 animate-spin rounded-full border-2 border-ai-ink/30 border-t-ai-ink" />
-              ) : (
-                <svg viewBox="0 0 24 24" className="h-3 w-3" fill="currentColor" aria-hidden="true">
-                  <path d="M12 2l1.9 6.1L20 10l-6.1 1.9L12 18l-1.9-6.1L4 10l6.1-1.9L12 2z" />
-                </svg>
-              )}
-              {suggesting ? "Drafting..." : "Suggest a reply"}
-            </button>
+                type="button"
+                onClick={() => void suggest()}
+                disabled={suggesting || sending}
+                className="inline-flex items-center gap-1.5 rounded-full bg-ai-soft px-3 py-1.5 text-xs font-medium text-ai-ink ring-1 ring-ai-line transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60 disabled:opacity-60"
+              >
+                {suggesting ? (
+                  <span className="h-3 w-3 animate-spin rounded-full border-2 border-ai-ink/30 border-t-ai-ink" />
+                ) : (
+                  <svg
+                    viewBox="0 0 24 24"
+                    className="h-3 w-3"
+                    fill="currentColor"
+                    aria-hidden="true"
+                  >
+                    <path d="M12 2l1.9 6.1L20 10l-6.1 1.9L12 18l-1.9-6.1L4 10l6.1-1.9L12 2z" />
+                  </svg>
+                )}
+                {suggesting ? "Drafting..." : "Suggest a reply"}
+              </button>
             )}
             {tools}
             {note && <span className="text-xs text-warn-ink">{note}</span>}
@@ -431,11 +552,19 @@ export default function ChatThread({
             disabled={sending || !text.trim()}
             className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand text-white transition hover:bg-brand-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60 focus-visible:ring-offset-2 focus-visible:ring-offset-surface disabled:bg-surface-3 disabled:text-ink-3"
           >
-            {sending ? <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" /> : <SendIcon />}
+            {sending ? (
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+            ) : (
+              <SendIcon />
+            )}
           </button>
         </div>
         <div className="mt-1.5 flex items-start justify-between gap-3 px-1">
-          {footnote ? <p className="text-[11px] leading-snug text-ink-3">{footnote}</p> : <span />}
+          {footnote ? (
+            <p className="text-[11px] leading-snug text-ink-3">{footnote}</p>
+          ) : (
+            <span />
+          )}
           {text.length > MAX_LENGTH * 0.8 && (
             <span className="shrink-0 text-[11px] tabular-nums text-ink-3">
               {text.length}/{MAX_LENGTH}

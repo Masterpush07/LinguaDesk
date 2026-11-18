@@ -1,21 +1,24 @@
 "use client";
 
 import { useState } from "react";
-import { FREE_SHIPPING_ABOVE, PRODUCTS, priceOrder, type OrderLine } from "@/lib/catalog";
+import { priceOrder, type OrderLine } from "@/lib/catalog";
+import type { ShopOrderInfo } from "@/lib/shop-data";
 
 type Props = {
+  shop: ShopOrderInfo;
   onSend: (lines: OrderLine[]) => Promise<void>;
   onClose: () => void;
 };
 
-// Owner picks products and quantities; the total is computed from the shared catalog, so it always matches what the server charges.
-export default function OrderBuilder({ onSend, onClose }: Props) {
+// Owner picks products and quantities; the total is computed from the shop's own settings, so it always matches what the server charges.
+export default function OrderBuilder({ shop, onSend, onClose }: Props) {
   const [qty, setQty] = useState<Record<string, number>>({});
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
 
-  const lines: OrderLine[] = PRODUCTS.flatMap((p) => ((qty[p.id] ?? 0) > 0 ? [{ id: p.id, qty: qty[p.id] }] : []));
-  const priced = priceOrder(lines);
+  const lines: OrderLine[] = shop.products.flatMap((p) => ((qty[p.id] ?? 0) > 0 && p.inStock ? [{ id: p.id, qty: qty[p.id] }] : []));
+  const priced = priceOrder(lines, shop);
+  const { freeAbove } = shop.shipping;
 
   const change = (id: string, delta: number) =>
     setQty((prev) => ({ ...prev, [id]: Math.min(20, Math.max(0, (prev[id] ?? 0) + delta)) }));
@@ -35,7 +38,7 @@ export default function OrderBuilder({ onSend, onClose }: Props) {
   }
 
   return (
-    <div className="mb-2 rounded-2xl bg-surface-2 p-3 ring-1 ring-line">
+    <div className="mb-2 max-h-72 overflow-y-auto rounded-2xl bg-surface-2 p-3 ring-1 ring-line">
       <div className="mb-2 flex items-center justify-between">
         <p className="text-sm font-semibold">Create an order</p>
         <button type="button" onClick={onClose} aria-label="Close order builder" className="rounded-full px-2 py-1 text-xs text-ink-2 hover:bg-surface-3">
@@ -44,10 +47,11 @@ export default function OrderBuilder({ onSend, onClose }: Props) {
       </div>
 
       <ul className="space-y-1.5">
-        {PRODUCTS.map((p) => (
+        {shop.products.map((p) => (
           <li key={p.id} className="flex items-center justify-between gap-3 text-sm">
-            <span>
+            <span className={p.inStock ? "" : "text-ink-3"}>
               {p.name} <span className="text-ink-3">${p.price}</span>
+              {!p.inStock && <span className="ml-1 text-xs">(out of stock)</span>}
             </span>
             <span className="flex items-center gap-2">
               <button type="button" onClick={() => change(p.id, -1)} disabled={!qty[p.id]} aria-label={`Fewer ${p.name}`} className="h-7 w-7 rounded-full bg-surface text-ink ring-1 ring-line hover:bg-surface-3 disabled:opacity-40">
@@ -56,7 +60,7 @@ export default function OrderBuilder({ onSend, onClose }: Props) {
               <span className="w-5 text-center tabular-nums" aria-live="polite">
                 {qty[p.id] ?? 0}
               </span>
-              <button type="button" onClick={() => change(p.id, 1)} aria-label={`More ${p.name}`} className="h-7 w-7 rounded-full bg-surface text-ink ring-1 ring-line hover:bg-surface-3">
+              <button type="button" onClick={() => change(p.id, 1)} disabled={!p.inStock} aria-label={`More ${p.name}`} className="h-7 w-7 rounded-full bg-surface text-ink ring-1 ring-line hover:bg-surface-3 disabled:opacity-40">
                 +
               </button>
             </span>
@@ -64,10 +68,11 @@ export default function OrderBuilder({ onSend, onClose }: Props) {
         ))}
       </ul>
 
-      <div className="mt-3 flex items-center justify-between border-t border-line pt-2 text-sm">
+      <div className="mt-3 flex items-center justify-between gap-3 border-t border-line pt-2 text-sm">
         {priced ? (
           <span className="text-ink-2">
-            Shipping {priced.shipping === 0 ? "free" : `$${priced.shipping}`} <span className="text-ink-3">(free above ${FREE_SHIPPING_ABOVE})</span>
+            Shipping {priced.shipping === 0 ? "free" : `$${priced.shipping}`}
+            {freeAbove > 0 && <span className="text-ink-3"> (free above ${freeAbove})</span>}
             <span className="ml-3 font-semibold text-ink">Total ${priced.total}</span>
           </span>
         ) : (
@@ -77,7 +82,7 @@ export default function OrderBuilder({ onSend, onClose }: Props) {
           type="button"
           onClick={() => void send()}
           disabled={!priced || sending}
-          className="rounded-full bg-brand px-4 py-1.5 text-xs font-medium text-white hover:bg-brand-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60 disabled:bg-surface-3 disabled:text-ink-3"
+          className="shrink-0 rounded-full bg-brand px-4 py-1.5 text-xs font-medium text-white hover:bg-brand-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60 disabled:bg-surface-3 disabled:text-ink-3"
         >
           {sending ? "Sending..." : "Send order card"}
         </button>

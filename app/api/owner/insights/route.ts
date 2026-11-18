@@ -14,7 +14,8 @@ const TOPIC_RULES = {
 
 // Owner-only numbers for the Insights page. Plain read-only queries, no AI calls, so opening it costs no quota.
 export async function GET() {
-  if (!(await isOwner())) return NextResponse.json({ error: "Not signed in" }, { status: 401 });
+  if (!(await isOwner()))
+    return NextResponse.json({ error: "Not signed in" }, { status: 401 });
   const sql = db();
 
   const [totals, languages, daily, topics] = await Promise.all([
@@ -44,5 +45,10 @@ export async function GET() {
       FROM (SELECT lower(coalesce(text_en, text)) AS t FROM messages WHERE sender = 'customer') s`,
   ]);
 
-  return NextResponse.json({ totals: totals[0], languages, daily, topics: topics[0] });
+  return NextResponse.json({
+    totals: totals[0],
+    languages,
+    daily,
+    topics: topics[0],
+  });
 }

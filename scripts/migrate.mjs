@@ -46,6 +46,12 @@ const statements = [
     created_at timestamptz NOT NULL DEFAULT now()
   )`,
   `CREATE INDEX IF NOT EXISTS rate_events_key_idx ON rate_events (key, created_at)`,
+  // The shop's products, prices and policies: one row the owner edits and the AI answers from.
+  `CREATE TABLE IF NOT EXISTS shop_settings (
+    id integer PRIMARY KEY CHECK (id = 1),
+    data jsonb NOT NULL,
+    updated_at timestamptz NOT NULL DEFAULT now()
+  )`,
 ];
 
 for (const statement of statements) await sql.query(statement);

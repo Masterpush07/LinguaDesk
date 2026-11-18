@@ -2,6 +2,16 @@ import Image from "next/image";
 import Link from "next/link";
 import QRCode from "qrcode";
 import ThemeToggle from "@/components/ThemeToggle";
+import { DEFAULT_SHOP } from "@/lib/shop-defaults";
+
+const TRY_ASKING = [
+  "How much is the silk-cotton saree?",
+  "What colours does the scarf come in?",
+  "Do you ship to the US, and how long does it take?",
+  "¿Puedo devolver un producto si no me gusta?",
+  "क्या आप मुझे उपहार के लिए रैपिंग कर सकते हैं?",
+  "I want to order 2 tote bags",
+];
 
 const CHAT_URL = "https://lingua-desk-one.vercel.app/chat"; // what the QR code opens
 
@@ -68,6 +78,39 @@ export default async function Home() {
               {language}
             </span>
           ))}
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-4xl px-6 pb-14">
+        <div className="rounded-2xl bg-surface-2 p-6 ring-1 ring-line">
+          <p className="text-xs font-semibold uppercase tracking-wide text-brand-ink">The demo shop</p>
+          <h2 className="mt-1 text-2xl font-bold">{DEFAULT_SHOP.name}</h2>
+          <p className="mt-1 max-w-2xl text-sm text-ink-2">{DEFAULT_SHOP.tagline}</p>
+          <div className="mt-5 grid gap-6 sm:grid-cols-2">
+            <div>
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-ink-3">What it sells</h3>
+              <ul className="mt-2 space-y-1.5 text-sm">
+                {DEFAULT_SHOP.products.map((p) => (
+                  <li key={p.id} className="flex justify-between gap-4">
+                    <span>{p.name}</span>
+                    <span className="tabular-nums text-ink-2">${p.price}</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-2 text-xs text-ink-3">Free shipping above ${DEFAULT_SHOP.shipping.freeAbove}. Ships worldwide.</p>
+            </div>
+            <div>
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-ink-3">Questions to try</h3>
+              <ul className="mt-2 space-y-1.5 text-sm">
+                {TRY_ASKING.map((q) => (
+                  <li key={q} dir="auto" className="text-ink-2">
+                    &ldquo;{q}&rdquo;
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-2 text-xs text-ink-3">Anything outside the shop info is handed to a human. Try one!</p>
+            </div>
+          </div>
         </div>
       </section>
 
