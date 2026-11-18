@@ -66,7 +66,7 @@ function ShopChat({ customerId }: { customerId: string }) {
       suggestions={SUGGESTIONS}
       emptyTitle="Hi! How can we help?"
       emptyText="Ask about products, prices, shipping or returns. We reply in your language."
-      footnote="Replies may be written by AI (Google Gemini). Please don't share sensitive information."
+      footnote="Replies may be written by AI (Google Gemini, or Groq as a backup). Please don't share sensitive information."
     />
   );
 }
