@@ -81,11 +81,22 @@ Requirements: Node.js 20+, a free Nexconn account, a free Neon database, a free 
 ```bash
 npm install
 cp .env.example .env.local          # then fill in the values
-node --env-file=.env.local scripts/migrate.mjs   # creates the tables (safe to re-run)
+node --env-file=.env.local scripts/migrate.mjs      # original single-shop demo tables (safe to re-run)
+node --env-file=.env.local scripts/migrate-v2.mjs   # multi-seller marketplace tables (safe to re-run)
 npm run dev
+node --env-file=.env.local scripts/seed-demo.mjs    # optional: creates four real demo shops and prints their sign-in details
 ```
 
-Open http://localhost:3000/chat for the customer view and http://localhost:3000/owner for the owner view.
+Open http://localhost:3000/marketplace for buyers, http://localhost:3000/sell to open a shop, and http://localhost:3000/login for shop owners and agents. The original single-shop demo stays at `/chat` and `/owner`.
+
+### How the multi-seller marketplace works
+
+- **Buyers** are anonymous guests. They browse `/marketplace`, open a shop and chat in their own language.
+- **Sellers** sign up at `/sell` with a shop name, their name and a passcode (stored hashed). The owner manages products, FAQs, the AI glossary, team, settings and orders in the seller studio at `/seller`.
+- **Agents** join a shop with a one-time invite code (`/login`, tab "Join a team") and work in the agent desk at `/agent`.
+- **Handoff:** the AI answers from the shop's own data. When it cannot, or the buyer asks, the conversation enters the shop's queue and dispatch assigns an online team member who speaks the buyer's language, with the lowest load. The agent writes in English; the server translates, back-translates for review and verifies every number before sending.
+- **Voice:** the microphone records in the browser; `/api/voice/transcribe` transcribes with Groq Whisper (`GROQ_API_KEY`) and falls back to Gemini audio (`GEMINI_API_KEY`). The sender reviews and edits the transcript before it is sent. Audio is not stored.
+- Both the original demo and the marketplace share one Nexconn webhook: `message:send` messages addressed to a registered shop are handled by the marketplace bot, and messages addressed to the demo shop by the original bot.
 
 The AI bot is driven by a Nexconn webhook, which needs a public URL. In the Nexconn Console, add a webhook for the `message:send` event pointing to `https://<your-host>/api/webhooks/nexconn` (deploy to Vercel, or use a tunnel while developing).
 
