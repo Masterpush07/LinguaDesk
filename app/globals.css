@@ -1,5 +1,16 @@
 @import "tailwindcss";
 
+/* Dev logs live in .next and change on every browser message; scanning them for class names would rebuild in a loop. */
+@source not "../.next";
+@source not "../public";
+/* Windows does not draw flag emoji; this font supplies only the flag glyphs and leaves all other text alone. */
+@font-face {
+  font-family: "Twemoji Country Flags";
+  src: url("/fonts/TwemojiCountryFlags.woff2") format("woff2");
+  unicode-range: U+1F1E6-1F1FF, U+1F3F4, U+E0062-E007F;
+  font-display: swap;
+}
+
 /* Semantic colour tokens: components use bg-surface, text-ink, etc., and the .dark class swaps every value at once. */
 :root {
   --surface: #ffffff;
@@ -76,9 +87,10 @@
   --color-ok-ink: var(--ok-ink);
   --color-danger-soft: var(--danger-soft);
   --color-danger-ink: var(--danger-ink);
-  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, "Segoe UI", "Noto Sans", "Noto Sans Devanagari",
+  --font-sans: "Twemoji Country Flags", var(--font-geist-sans), ui-sans-serif, system-ui, "Segoe UI", "Noto Sans", "Noto Sans Devanagari",
     "Noto Sans Tamil", "Noto Sans Kannada", "Noto Sans Arabic", "Noto Sans SC", "Noto Sans JP", "Noto Sans KR", sans-serif;
-  --font-mono: var(--font-geist-mono);
+  --font-mono: "Twemoji Country Flags", var(--font-geist-mono);
+  --font-heading: "Twemoji Country Flags", var(--font-jakarta), var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
 }
 
 body {
