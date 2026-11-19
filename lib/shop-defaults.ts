@@ -75,7 +75,7 @@ export const DEFAULT_SHOP: ShopData = {
     freeAbove: 60,
     fee: 6,
     worldwideDays: "5 to 7 business days",
-    domesticDays: "2 to 3 business days inside India",
+    domesticDays: "2 to 3 business days",
     notes:
       "Orders are packed within 1 to 2 business days. A tracking link is sent in this chat when the parcel ships. Import duties and taxes, if any, are paid by the buyer.",
   },

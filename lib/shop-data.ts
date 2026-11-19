@@ -76,7 +76,7 @@ export function buildKnowledge(shop: ShopData): string {
         : `Shipping costs $${s.fee} per order.`;
   const days = [
     s.worldwideDays && `Delivery takes ${s.worldwideDays} worldwide`,
-    s.domesticDays && `${s.domesticDays} inside the shop's home country`,
+    s.domesticDays && `${s.domesticDays} in the shop's home country`,
   ]
     .filter(Boolean)
     .join(" and ");
