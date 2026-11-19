@@ -62,10 +62,11 @@ export async function loadShop(sellerId: string): Promise<{ shop: ShopData; extr
     faqs: faqRows.map((f): Faq => ({ q: f.q, a: f.a })),
   };
   const keep = glossary.filter((g) => g.rule === "keep").map((g) => g.term);
-  const fixed = glossary.filter((g) => g.rule === "fixed").map((g) => `${g.term}${g.note ? ` (${g.note})` : ""}`);
+  // Explicit replacement wording; "consistently" alone let the AI keep the original term.
+  const fixed = glossary.filter((g) => g.rule === "fixed" && g.note).map((g) => `"${g.term}" must always be written as "${g.note}"`);
   const extra = [
     keep.length ? `Never translate these terms; write them exactly as given: ${keep.join(", ")}.` : "",
-    fixed.length ? `Use these terms consistently: ${fixed.join("; ")}.` : "",
+    fixed.length ? `Term replacements, applied in every reply language: ${fixed.join("; ")}. Never use the original term in the reply.` : "",
   ]
     .filter(Boolean)
     .join("\n");
