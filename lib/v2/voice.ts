@@ -7,6 +7,7 @@ export type Transcript = { text: string; language: string | null; provider: "gro
 // large-v3 first: it is noticeably more accurate than the turbo variant for Indian languages such as Kannada.
 const GROQ_MODELS = ["whisper-large-v3", "whisper-large-v3-turbo"];
 const GEMINI_MODELS = ["gemini-3.5-flash-lite", "gemini-3.1-flash-lite"];
+const NO_SPEECH_THRESHOLD = 0.6; // real speech scores about 0.001, silence about 0.7
 
 const NAME_TO_CODE: Record<string, string> = {
   english: "en", spanish: "es", japanese: "ja", hindi: "hi", arabic: "ar", french: "fr", tamil: "ta",
@@ -34,8 +35,11 @@ async function groqTranscribe(audio: Blob, filename: string, languageHint?: stri
         signal: AbortSignal.timeout(25_000),
       });
       if (!res.ok) throw new Error(`Groq ${model} returned HTTP ${res.status}`);
-      const body = (await res.json()) as { text?: string; language?: string };
-      return { text: (body.text ?? "").trim(), language: languageCode(body.language), provider: "groq" };
+      const body = (await res.json()) as { text?: string; language?: string; segments?: { no_speech_prob?: number }[] };
+      // Whisper invents words for silence; when every segment is probably not speech the clip counts as empty.
+      const segments = body.segments ?? [];
+      const silent = segments.length > 0 && segments.every((s) => (s.no_speech_prob ?? 0) > NO_SPEECH_THRESHOLD);
+      return { text: silent ? "" : (body.text ?? "").trim(), language: languageCode(body.language), provider: "groq" };
     } catch (err) {
       lastError = err;
     }

@@ -30,6 +30,14 @@ export async function POST(req: NextRequest, ctx: Ctx) {
   const priced = priceOrder(body?.lines, shop);
   if (!priced) return fail(400, "These items cannot be ordered. Check that each product is in stock and the quantities are valid.");
 
+  // priceOrder only knows in-stock or not, so the quantity is checked against the real stock count here.
+  const stockRows = await db()`SELECT id, name, stock FROM products WHERE seller_id = ${staff.sellerId} AND id = ANY(${priced.lines.map((l) => l.id)})`;
+  const short = priced.lines.find((l) => (stockRows.find((r) => r.id === l.id)?.stock ?? 0) < l.qty);
+  if (short) {
+    const have = stockRows.find((r) => r.id === short.id)?.stock ?? 0;
+    return fail(409, `Only ${have} of "${short.name}" ${have === 1 ? "is" : "are"} in stock, but ${short.qty} were requested.`);
+  }
+
   const english: OrderCard = {
     id: newId("ord"),
     lines: priced.lines.map(({ name, qty, unit, amount }) => ({ name, qty, unit, amount })),

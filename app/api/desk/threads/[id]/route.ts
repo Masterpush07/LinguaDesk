@@ -17,13 +17,14 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
   if (!thread) return fail(404, "Conversation not found.");
 
   const sql = db();
+  // System notices (shipped, delivered) are linked to their order but must not repeat the order card, so the join skips them.
   const [[buyer], messages, notes, events, orders, product, team] = await Promise.all([
     sql`SELECT id, name, language FROM buyers WHERE id = ${thread.buyer.id}`,
     sql`SELECT m.id, m.sender, m.text, m.text_en, m.lang, m.voice_seconds, m.confidence, m.numbers_verified, m.created_at,
         st.name AS staff_name, o.card
       FROM thread_messages m
       LEFT JOIN staff st ON st.id = m.staff_id
-      LEFT JOIN orders_v2 o ON o.id = m.order_id AND o.seller_id = ${staff.sellerId}
+      LEFT JOIN orders_v2 o ON o.id = m.order_id AND o.seller_id = ${staff.sellerId} AND m.sender <> 'system'
       WHERE m.thread_id = ${id} ORDER BY m.created_at, m.id LIMIT 300`,
     sql`SELECT n.id, n.text, n.created_at, st.name AS staff_name
       FROM thread_notes n LEFT JOIN staff st ON st.id = n.staff_id WHERE n.thread_id = ${id} ORDER BY n.created_at`,
