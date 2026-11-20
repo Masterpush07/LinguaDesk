@@ -25,9 +25,7 @@ export type BuyerThreadView = {
   thread: {
     id: string;
     status: ThreadStatus;
-    priority: "normal" | "high" | "critical";
     language: string | null;
-    summary: string | null;
     assignedStaff: { name: string } | null;
     handoffAt: string | null;
     slaDueAt: string | null;

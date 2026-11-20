@@ -24,7 +24,7 @@ export const iso = (value: unknown): string | null => (value ? new Date(value as
 
 export async function loadThreadView(threadId: string, buyerId: string): Promise<BuyerThreadView | null> {
   const sql = db();
-  const [t] = await sql`SELECT t.id, t.status, t.priority, t.language, t.summary, t.handoff_at, t.sla_due_at, t.rating, t.product_id,
+  const [t] = await sql`SELECT t.id, t.status, t.language, t.handoff_at, t.sla_due_at, t.rating, t.product_id,
       st.name AS staff_name, s.id AS seller_id, s.slug, s.shop_name, s.nexconn_user_id, s.country, s.languages, s.response_target_min,
       EXISTS (SELECT 1 FROM staff o WHERE o.seller_id = s.id AND o.available AND o.last_seen > now() - make_interval(secs => ${ONLINE_SECONDS})) AS team_online
     FROM threads t
@@ -72,9 +72,7 @@ export async function loadThreadView(threadId: string, buyerId: string): Promise
     thread: {
       id: t.id,
       status: t.status as ThreadStatus,
-      priority: t.priority,
       language: t.language ?? null,
-      summary: t.summary ?? null,
       assignedStaff: t.staff_name ? { name: t.staff_name } : null,
       handoffAt: iso(t.handoff_at),
       slaDueAt: iso(t.sla_due_at),
