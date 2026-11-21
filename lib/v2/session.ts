@@ -61,3 +61,6 @@ export async function setBuyerCookie(buyerId: string) {
 export async function currentBuyerId(): Promise<string | null> {
   return verifyToken<{ b: string }>((await cookies()).get(BUYER_COOKIE)?.value)?.b ?? null;
 }
+export async function clearBuyerCookie() {
+  (await cookies()).set(BUYER_COOKIE, "", { ...cookieOptions(0), expires: new Date(0) });
+}

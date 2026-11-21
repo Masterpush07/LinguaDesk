@@ -14,6 +14,7 @@ export default function SiteFooter() {
           <Link href="/sell" className="hover:text-slate-900">Sell on LinguaDesk</Link>
           <Link href="/demo" className="hover:text-slate-900">Live demo</Link>
           <Link href="/marketplace" className="hover:text-slate-900">Marketplace</Link>
+          <Link href="/privacy" className="hover:text-slate-900" data-testid="footer-privacy">Privacy</Link>
         </div>
       </div>
     </footer>
