@@ -31,21 +31,21 @@ export function LangBadge({ code, dark = false, className = "" }: { code: LangCo
   );
 }
 
-export function AiBadge({ dark = false }: { dark?: boolean }) {
+export function AiBadge({ dark = false, label = "AI assistant" }: { dark?: boolean; label?: string }) {
   return (
     <span
       className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${dark ? "bg-violet-500/15 text-violet-300 ring-1 ring-violet-400/30" : "bg-violet-50 text-violet-700 ring-1 ring-violet-200"}`}
     >
       <Sparkles className="h-2.5 w-2.5" aria-hidden="true" />
-      AI assistant
+      {label}
     </span>
   );
 }
 
 const STATUS: Record<ConvStatus, { label: string; light: string; dark: string; hint: string }> = {
-  ai: {   label: "AI responding", light: "bg-violet-50 text-violet-700 ring-violet-200", dark: "bg-violet-500/15 text-violet-300 ring-violet-400/30", hint: "The AI assistant is handling this conversation." },
-    waiting: { label: "Waiting for agent", light: "bg-amber-50 text-amber-700 ring-amber-200", dark: "bg-amber-400/10 text-amber-300 ring-amber-400/30", hint: "An agent has been requested." },
-    assigned: { label: "With an agent", light: "bg-emerald-50 text-emerald-700 ring-emerald-200", dark: "bg-emerald-400/10 text-emerald-300 ring-emerald-400/30", hint: "An agent is handling this conversation." },
+  ai: {   label: "Assistant answering", light: "bg-violet-50 text-violet-700 ring-violet-200", dark: "bg-violet-500/15 text-violet-300 ring-violet-400/30", hint: "The AI assistant is handling this conversation." },
+    waiting: { label: "Needs a reply", light: "bg-amber-50 text-amber-700 ring-amber-200", dark: "bg-amber-400/10 text-amber-300 ring-amber-400/30", hint: "The shop owner has been notified and a reply is needed." },
+    assigned: { label: "With the shop team", light: "bg-emerald-50 text-emerald-700 ring-emerald-200", dark: "bg-emerald-400/10 text-emerald-300 ring-emerald-400/30", hint: "The shop team is handling this conversation." },
     resolved: { label: "Resolved", light: "bg-slate-100 text-slate-600 ring-slate-200", dark: "bg-slate-700/40 text-slate-300 ring-slate-600", hint: "This conversation is closed." },
 };
 

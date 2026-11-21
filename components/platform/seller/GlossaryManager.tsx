@@ -232,7 +232,7 @@ export default function GlossaryManager() {
               </dl>
               {result.needsAgent && (
                 <p data-testid="glossary-test-handoff" className="mt-2 text-xs font-medium text-amber-700">
-                  {result.blocked ? "The AI draft was blocked because it contained a number that is not in your shop information. A customer would be handed to an agent." : "For this message the AI would hand the conversation to an agent."}
+                  {result.blocked ? "The AI draft was blocked because it contained a number that is not in your shop information. You would be notified and the customer told that the shop will reply." : "For this message the AI would notify you and tell the customer that the shop will reply."}
                 </p>
               )}
             </div>

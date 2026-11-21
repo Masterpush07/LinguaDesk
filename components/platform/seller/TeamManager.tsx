@@ -15,8 +15,10 @@ const originStore = {
   server: () => "",
 };
 
+const inviteLink = (origin: string, code: string) => `${origin}/join?code=${code}`;
+
 const inviteMessage = (shop: string, origin: string, code: string) =>
-  `Join ${shop} on LinguaDesk: open ${origin}/login, choose Join a team and enter code ${code}`;
+  `You are invited to join ${shop} on LinguaDesk. Open ${inviteLink(origin, code)}, choose your name and a passcode, and you will join the team. The invite works once.`;
 
 export default function TeamManager() {
   const staff = useStaff({ owner: true });
@@ -48,7 +50,7 @@ export default function TeamManager() {
     try {
       const { code } = await api<{ code: string }>("/api/desk/invites", { method: "POST", json: {} });
       invites.update((list) => [{ code, createdAt: new Date().toISOString(), createdByName: staff?.name ?? null }, ...list]);
-      setNotice(`Invite code ${code} was created. It works once.`);
+      setNotice(`Invite created. Copy the invite link and send it to your teammate. It works once.`);
     } catch (err) {
       setNotice("");
       setActionError(errorMessage(err));
@@ -137,28 +139,30 @@ export default function TeamManager() {
       )}
 
       <Card testId="invite-card">
-        <h2 className="font-heading text-lg font-semibold text-slate-900">Invite an agent</h2>
-        <p className="mt-0.5 text-sm text-slate-500">Generate a one-time code and send it to the agent. They open the sign-in page, choose Join a team and enter the code. Agents answer customers; only you can change shop settings.</p>
+        <h2 className="font-heading text-lg font-semibold text-slate-900">Add a teammate (optional)</h2>
+        <p className="mt-0.5 text-sm text-slate-500">
+          You do not need a team. Your AI assistant answers customers and notifies you when it cannot. If someone else will reply to customers, create an invite and send it to them yourself, for example by message or email. They open the link, choose a name and a passcode, and join your shop. Teammates reply to customers; only you can change shop settings.
+        </p>
         <button type="button" onClick={generate} disabled={generating} data-testid="invite-generate" className={`${BTN_PRIMARY} mt-4`}>
           <MailPlus className="h-4 w-4" aria-hidden="true" />
-          {generating ? "Generating" : "Generate invite code"}
+          {generating ? "Creating" : "Create an invite"}
         </button>
 
         {invites.loading && <div className="mt-4"><LoadingBlock label="Loading invites" testId="invites-loading" rows={1} /></div>}
         {invites.error && !invites.data && <div className="mt-4"><ErrorBlock message={invites.error} onRetry={invites.reload} testId="invites-error" /></div>}
         {invites.data && invites.data.length === 0 && (
-          <p data-testid="invites-empty" className="mt-4 text-sm text-slate-500">No unused invite codes.</p>
+          <p data-testid="invites-empty" className="mt-4 text-sm text-slate-500">No pending invites.</p>
         )}
         {invites.data && invites.data.length > 0 && (
           <ul className="mt-4 divide-y divide-slate-100" data-testid="invite-list">
             {invites.data.map((i) => (
               <li key={i.code} data-testid={`invite-${i.code}`} className="flex flex-wrap items-center gap-3 py-3 text-sm">
                 <code className="rounded-md bg-slate-100 px-2 py-1 font-mono text-base font-semibold tracking-widest text-slate-900" data-testid={`invite-code-${i.code}`}>{i.code}</code>
-                <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700 ring-1 ring-amber-200">Unused</span>
+                <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700 ring-1 ring-amber-200">Pending</span>
                 <span className="text-xs text-slate-500">Created {formatDateTime(i.createdAt)}</span>
                 <div className="ml-auto flex flex-wrap items-center gap-2">
+                  <CopyButton text={inviteMessage(shop, origin, i.code)} label="Copy invite link" testId={`invite-copy-message-${i.code}`} className={`${BTN_GHOST} !px-3 !py-1.5`} />
                   <CopyButton text={i.code} label="Copy code" testId={`invite-copy-code-${i.code}`} className={`${BTN_GHOST} !px-3 !py-1.5`} />
-                  <CopyButton text={inviteMessage(shop, origin, i.code)} label="Copy invite message" testId={`invite-copy-message-${i.code}`} className={`${BTN_GHOST} !px-3 !py-1.5`} />
                   <button type="button" onClick={() => revoke(i.code)} disabled={revokingCode === i.code} aria-label={`Revoke invite code ${i.code}`} data-testid={`invite-revoke-${i.code}`} className={`rounded-full px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50 ${FOCUS}`}>
                     Revoke
                   </button>
@@ -175,7 +179,7 @@ export default function TeamManager() {
       <Card className="overflow-x-auto !p-0" testId="team-card">
         <div className="px-5 pt-5">
           <h2 className="font-heading text-lg font-semibold text-slate-900">Team members</h2>
-          <p className="mt-0.5 text-sm text-slate-500">Online means the agent desk is open. Conversations are assigned to online agents who speak the customer&apos;s language and have capacity.</p>
+          <p className="mt-0.5 text-sm text-slate-500">Online means their inbox is open. Conversations the AI cannot answer are assigned to online teammates who speak the customer&apos;s language and have capacity. If nobody is online, you are notified in the app.</p>
         </div>
         {team.loading && <div className="p-5"><LoadingBlock label="Loading team" testId="team-loading" rows={2} /></div>}
         {team.error && !team.data && <div className="p-5"><ErrorBlock message={team.error} onRetry={team.reload} testId="team-error" /></div>}

@@ -339,7 +339,7 @@ export default function BuyerChat({ slug }: { slug: string }) {
                 className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium ${seller.teamOnline ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"}`}
               >
                 <span className={`h-1.5 w-1.5 rounded-full ${seller.teamOnline ? "bg-emerald-500" : "bg-slate-400"}`} />
-                {seller.teamOnline ? "Team online" : "Team away, the AI assistant replies"}
+                {seller.teamOnline ? "Shop team online" : `Team away, ${seller.assistantName} replies`}
               </span>
               <span
                 data-testid="chat-connection-status"
@@ -403,7 +403,7 @@ export default function BuyerChat({ slug }: { slug: string }) {
 
           {messages.map((m) => (
             <div key={m.id} className="flex flex-col gap-2">
-              <BuyerBubble message={m} view={reading} />
+              <BuyerBubble message={m} view={reading} assistantName={seller.assistantName} />
               {m.order && m.orderId && (
                 <div className="flex justify-start">
                   <OrderCardView
@@ -462,7 +462,7 @@ export default function BuyerChat({ slug }: { slug: string }) {
             </div>
           )}
 
-          {typing && <TypingIndicator label="The AI assistant is typing" />}
+          {typing && <TypingIndicator label={`${seller.assistantName} is typing`} />}
         </div>
       </div>
 

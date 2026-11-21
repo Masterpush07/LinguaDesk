@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { LogOut, Radio, Store } from "lucide-react";
+import { signOut as signOutRequest } from "@/components/platform/auth/session";
 import { Logo } from "@/components/platform/CustomerHeader";
+import NotificationBell from "@/components/platform/NotificationBell";
 import { focusRing, Initials } from "@/components/platform/agent/desk-ui";
 import { connect, onConnection, onMessage } from "@/lib/nexconn-client";
 import { api, useHeartbeat, useStaff } from "@/lib/v2/client";
@@ -62,13 +64,13 @@ const LIVE_LABEL: Record<Live, { text: string; dot: string }> = {
 // Dark command-centre shell for the shop team. Screens fill the space under the top bar.
 export default function AgentShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const router = useRouter();
   const staff = useStaff();
   useHeartbeat(staff !== null);
   const live = useLiveUpdates(staff !== null);
   const [available, setAvailable] = useState<boolean | null>(null);
   const [availabilityError, setAvailabilityError] = useState("");
   const [signingOut, setSigningOut] = useState(false);
+  const [signOutError, setSignOutError] = useState("");
   const toggling = useRef(false);
 
   useEffect(() => {
@@ -98,8 +100,12 @@ export default function AgentShell({ children }: { children: ReactNode }) {
 
   async function signOut() {
     setSigningOut(true);
-    await api("/api/auth/logout", { method: "POST" }).catch(() => undefined);
-    router.push("/login");
+    setSignOutError("");
+    const failure = await signOutRequest();
+    if (failure) {
+      setSignOutError(failure);
+      setSigningOut(false);
+    }
   }
 
   const liveInfo = LIVE_LABEL[live];
@@ -133,6 +139,7 @@ export default function AgentShell({ children }: { children: ReactNode }) {
             <span className={`h-2 w-2 rounded-full ${liveInfo.dot}`} aria-hidden="true" />
             <span className="sr-only">{liveInfo.text}</span>
           </span>
+          {staff && <NotificationBell />}
           {staff && staff.role === "owner" && (
             <Link href="/seller" data-testid="agent-seller-studio-link" className={`hidden items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-medium text-slate-300 hover:bg-slate-800 hover:text-white sm:inline-flex ${focusRing}`}>
               <Store className="h-4 w-4" aria-hidden="true" /> Seller studio
@@ -174,9 +181,9 @@ export default function AgentShell({ children }: { children: ReactNode }) {
           </button>
         </div>
       </header>
-      {availabilityError && (
+      {(availabilityError || signOutError) && (
         <p role="alert" data-testid="agent-availability-error" className="border-b border-red-400/30 bg-red-500/10 px-4 py-1.5 text-center text-xs text-red-200">
-          {availabilityError}
+          {signOutError || availabilityError}
         </p>
       )}
       <div className="min-h-0 flex-1">

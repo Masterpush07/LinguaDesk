@@ -6,7 +6,7 @@ export const metadata = { title: "Team · LinguaDesk Seller Studio" };
 export default function TeamPage() {
   return (
     <div className="mx-auto max-w-5xl">
-      <PageHeading title="Team" subtitle="The agents who take over when the AI hands off a conversation. Review languages and workload before adding more." />
+      <PageHeading title="Team" subtitle="Optional. Your AI assistant answers customers first and notifies you when it cannot. Add teammates only if other people will reply to customers as well." />
       <TeamManager />
     </div>
   );
