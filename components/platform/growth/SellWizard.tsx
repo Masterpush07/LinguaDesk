@@ -96,6 +96,9 @@ export default function SellWizard() {
   const [languages, setLanguages] = useState<string[]>(["en"]);
   const [shopError, setShopError] = useState("");
   const [creating, setCreating] = useState(false);
+  const [recoveryCode, setRecoveryCode] = useState("");
+  const [codeSaved, setCodeSaved] = useState(false);
+  const [codeCopied, setCodeCopied] = useState<"" | "yes" | "failed">("");
 
   // Step 2: products
   const [productText, setProductText] = useState("");
@@ -150,7 +153,10 @@ export default function SellWizard() {
 
   async function createShop(e: FormEvent) {
     e.preventDefault();
-    if (created) return setStep(1);
+    if (created) {
+      if (recoveryCode && !codeSaved) return setShopError("Confirm that you have saved your recovery code before you continue.");
+      return setStep(1);
+    }
     if (shopName.trim().length < 2) return setShopError("Enter a shop name of at least 2 characters.");
     if (ownerName.trim().length < 2) return setShopError("Enter your name.");
     if (passcode.length < 8) return setShopError("Choose a passcode of at least 8 characters.");
@@ -158,13 +164,14 @@ export default function SellWizard() {
     setCreating(true);
     setShopError("");
     try {
-      const res = await api<{ seller: Created }>("/api/auth/signup", {
+      const res = await api<{ seller: Created; recoveryCode?: string }>("/api/auth/signup", {
         method: "POST",
         json: { shopName, ownerName, passcode, country, tagline, languages },
       });
       setCreated({ slug: res.seller.slug, name: res.seller.name });
       notifyAuthChanged();
-      setStep(1);
+      if (res.recoveryCode) setRecoveryCode(res.recoveryCode);
+      else setStep(1);
     } catch (err) {
       setShopError(message(err));
     } finally {
@@ -239,6 +246,16 @@ export default function SellWizard() {
     if (errors.length === 0) setStep(3);
   }
 
+  async function copyRecoveryCode() {
+    try {
+      await navigator.clipboard.writeText(recoveryCode);
+      setCodeCopied("yes");
+    } catch {
+      setCodeCopied("failed");
+    }
+    setTimeout(() => setCodeCopied(""), 2500);
+  }
+
   async function copyLink() {
     try {
       await navigator.clipboard.writeText(link);
@@ -289,8 +306,32 @@ export default function SellWizard() {
             )}
             {created && (
               <p className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800" role="status" data-testid="wizard-shop-created">
-                <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden="true" /> {created.name} has been created. Continue to add products.
+                <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden="true" /> {created.name} has been created. Save your recovery code, then continue to add products.
               </p>
+            )}
+            {created && recoveryCode && (
+              <div className="rounded-xl border border-amber-300 bg-amber-50 p-4" data-testid="wizard-recovery-panel">
+                <h3 className="text-sm font-semibold text-amber-900">Your recovery code</h3>
+                <p className="mt-1 text-sm text-amber-900" data-testid="wizard-recovery-warning">
+                  This code is the only way to reset your passcode. It is shown once. Store it somewhere safe.
+                </p>
+                <p className="mt-3 select-all break-all rounded-lg bg-white px-3 py-2 text-center font-mono text-lg font-semibold tracking-widest text-slate-900 ring-1 ring-amber-200" data-testid="wizard-recovery-code">
+                  {recoveryCode}
+                </p>
+                <div className="mt-3 flex flex-wrap items-center gap-3">
+                  <button type="button" onClick={copyRecoveryCode} data-testid="wizard-recovery-copy" className={SECONDARY_BUTTON}>
+                    <Copy className="h-4 w-4" aria-hidden="true" />
+                    Copy code
+                  </button>
+                  <span role="status" aria-live="polite" data-testid="wizard-recovery-copy-status" className="text-xs font-medium text-slate-700">
+                    {codeCopied === "yes" ? "Copied to the clipboard." : codeCopied === "failed" ? "Copying failed. Select the code and copy it manually." : ""}
+                  </span>
+                </div>
+                <label className="mt-4 flex items-start gap-2 text-sm text-amber-900">
+                  <input type="checkbox" checked={codeSaved} onChange={(e) => setCodeSaved(e.target.checked)} data-testid="wizard-recovery-saved" className="mt-0.5 h-4 w-4 rounded border-slate-400" />
+                  I have saved my recovery code
+                </label>
+              </div>
             )}
 
             <div className="grid gap-4 sm:grid-cols-2">
@@ -357,7 +398,7 @@ export default function SellWizard() {
                   Sign in
                 </Link>
               </p>
-              <button type="submit" disabled={creating} data-testid="wizard-create-shop" className={PRIMARY_BUTTON}>
+              <button type="submit" disabled={creating || (!!created && !!recoveryCode && !codeSaved)} data-testid="wizard-create-shop" className={PRIMARY_BUTTON}>
                 {creating ? <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" /> : <ArrowRight className="h-4 w-4" aria-hidden="true" />}
                 {creating ? "Creating your shop" : created ? "Continue" : "Create shop and continue"}
               </button>

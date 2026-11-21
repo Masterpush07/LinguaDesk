@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Clock, MapPin } from "lucide-react";
 import { NextAction, PageFallback, ProductImage } from "@/components/platform/ui";
-import { Price } from "@/components/platform/Prefs";
+import { CurrencyNote, Price } from "@/components/platform/Prefs";
 import ProductPurchasePanel from "@/components/platform/orders/ProductPurchasePanel";
 import { ErrorPanel, LanguageChips, TeamStatus } from "@/components/platform/public/parts";
 import { NotFoundPanel } from "@/components/platform/public/StorefrontView";
@@ -60,6 +60,7 @@ export default function ProductView({ sellerSlug, productId }: { sellerSlug: str
               {data.name}
             </h1>
             <Price usd={data.priceUsd} className="mt-3 block font-heading text-3xl font-semibold text-slate-900" />
+            <CurrencyNote className="mt-1" testId="product-currency-note" />
             {data.description && (
               <p className="mt-4 leading-relaxed text-slate-600" data-testid="product-description">
                 {data.description}

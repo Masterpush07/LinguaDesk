@@ -27,7 +27,7 @@ const SCHEMA = {
   ],
 };
 
-export type Persona = { name: string; shop: string; tone: "formal" | "neutral" | "friendly" };
+export type Persona = { name: string; shop: string; tone: "formal" | "neutral" | "friendly"; hoursNote?: string };
 
 const TONE_RULE: Record<Persona["tone"], string> = {
   formal: "Write in a formal, courteous register.",
@@ -42,7 +42,7 @@ const oneLine = (value: string, max: number) => value.replace(/\s+/g, " ").trim(
 // With a persona the assistant has the owner's chosen name and tone, and hands over to "the shop team" instead of an anonymous team member.
 const systemPrompt = (kb: string, persona?: Persona) => {
   const intro = persona
-    ? `You are ${oneLine(persona.name, 40)}, the AI assistant of ${oneLine(persona.shop, 60)}, the shop described below. Only when the customer asks who or what you are, say you are ${oneLine(persona.name, 40)}, the shop's AI assistant; otherwise do not introduce yourself. ${TONE_RULE[persona.tone]}`
+    ? `You are ${oneLine(persona.name, 40)}, the AI assistant of ${oneLine(persona.shop, 60)}, the shop described below. Only when the customer asks who or what you are, say you are ${oneLine(persona.name, 40)}, the shop's AI assistant; otherwise do not introduce yourself. ${TONE_RULE[persona.tone]}${persona.hoursNote ? ` ${oneLine(persona.hoursNote, 400)}` : ""}`
     : `You are the AI customer support assistant for the shop described below. Only when the customer asks who or what you are, say you are the shop's AI assistant; otherwise do not introduce yourself.`;
   const prompt = `${intro}
 The user message is JSON with "history" (earlier messages, for context only) and "message" (the customer's latest message). Answer only "message"; use "history" to understand follow-ups such as "and in blue?".

@@ -1,7 +1,7 @@
 // Types for the prototype pages under app/(platform). Everything here is mock data: no backend is called.
 
 export type LangCode = "en" | "es" | "ja" | "hi" | "ar" | "fr" | "ta" | "pt" | "ko" | "zh";
-export type Currency = "USD" | "INR" | "EUR";
+export type Currency = "USD" | "INR" | "EUR" | "GBP" | "JPY" | "AED" | "AUD" | "CAD";
 
 export type Lang = { code: LangCode; name: string; native: string; flag: string; rtl?: boolean };
 

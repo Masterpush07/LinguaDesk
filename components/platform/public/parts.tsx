@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { AlertCircle, RefreshCw, MapPin } from "lucide-react";
-import { ProductImage } from "@/components/platform/ui";
+import { ProductImage, Rating } from "@/components/platform/ui";
 import { Price } from "@/components/platform/Prefs";
 import { LANGS } from "@/lib/platform/data";
 import type { LangCode } from "@/lib/platform/types";
@@ -99,9 +99,14 @@ export function PublicSellerCard({ seller }: { seller: ShopSummary }) {
         )}
       </div>
       <LanguageChips codes={seller.languages} />
-      <p className="mt-auto border-t border-slate-100 pt-3 text-xs text-slate-500" data-testid={`seller-card-products-${seller.slug}`}>
-        {seller.productCount === 0 ? "No products listed yet" : `${seller.productCount} ${seller.productCount === 1 ? "product" : "products"}`}
-      </p>
+      <div className="mt-auto flex items-center justify-between gap-2 border-t border-slate-100 pt-3 text-xs text-slate-500">
+        <span data-testid={`seller-card-rating-${seller.slug}`}>
+          <Rating value={seller.rating} count={seller.reviewCount} />
+        </span>
+        <span data-testid={`seller-card-products-${seller.slug}`}>
+          {seller.productCount === 0 ? "No products listed yet" : `${seller.productCount} ${seller.productCount === 1 ? "product" : "products"}`}
+        </span>
+      </div>
     </Link>
   );
 }

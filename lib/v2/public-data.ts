@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { iso } from "@/lib/v2/seller-api";
 
 // Server-only. Shapes returned by the public (no sign-in) marketplace API. Nothing here exposes staff, passcodes or chat identities.
 const ONLINE_WINDOW_SECONDS = 90;
@@ -12,7 +13,11 @@ export type PublicSellerSummary = {
   teamOnline: boolean;
   productCount: number;
   responseTargetMin: number;
+  rating: number | null;
+  reviewCount: number;
 };
+
+export type PublicReview = { rating: number; body: string; createdAt: string };
 
 export type PublicProduct = {
   id: string;
@@ -49,7 +54,9 @@ export async function listSellers(q: string, country: string): Promise<PublicSel
   const rows = await db()`SELECT s.slug, s.shop_name, s.tagline, s.country, s.languages, s.response_target_min,
       EXISTS (SELECT 1 FROM staff st WHERE st.seller_id = s.id AND st.available
         AND st.last_seen > now() - make_interval(secs => ${ONLINE_WINDOW_SECONDS})) AS team_online,
-      (SELECT count(*)::int FROM products p WHERE p.seller_id = s.id AND p.active) AS product_count
+      (SELECT count(*)::int FROM products p WHERE p.seller_id = s.id AND p.active) AS product_count,
+      (SELECT round(avg(rv.rating)::numeric, 1)::float8 FROM reviews rv WHERE rv.seller_id = s.id) AS rating,
+      (SELECT count(*)::int FROM reviews rv WHERE rv.seller_id = s.id) AS review_count
     FROM sellers s
     WHERE (${q} = '' OR position(lower(${q}) in lower(s.shop_name || ' ' || s.tagline || ' ' || s.country)) > 0)
       AND (${country} = '' OR lower(s.country) = lower(${country}))
@@ -64,6 +71,8 @@ export async function listSellers(q: string, country: string): Promise<PublicSel
     teamOnline: r.team_online,
     productCount: r.product_count,
     responseTargetMin: r.response_target_min,
+    rating: r.review_count === 0 ? null : (r.rating as number),
+    reviewCount: r.review_count,
   }));
 }
 
@@ -114,11 +123,13 @@ export async function sellerDetail(slug: string) {
   const [s] = await db()`SELECT id, slug, shop_name, tagline, about, country, languages, hours, shipping, policies, response_target_min
     FROM sellers WHERE slug = ${slug}`;
   if (!s) return null;
-  const [products, faqs, teamOnline] = await Promise.all([
+  const [products, faqs, teamOnline, [stats], reviews] = await Promise.all([
     db()`SELECT id, name, description, category, price_usd, colors, sizes, stock, image_url
       FROM products WHERE seller_id = ${s.id} AND active ORDER BY created_at`,
     db()`SELECT q, a FROM faqs WHERE seller_id = ${s.id} ORDER BY created_at`,
     isTeamOnline(s.id),
+    db()`SELECT round(avg(rating)::numeric, 1)::float8 AS rating, count(*)::int AS review_count FROM reviews WHERE seller_id = ${s.id}`,
+    db()`SELECT rating, body, created_at FROM reviews WHERE seller_id = ${s.id} ORDER BY created_at DESC LIMIT 5`,
   ]);
   return {
     seller: {
@@ -133,7 +144,10 @@ export async function sellerDetail(slug: string) {
       policies: s.policies as Record<string, unknown>,
       teamOnline,
       responseTargetMin: s.response_target_min as number,
+      rating: stats.review_count === 0 ? null : (stats.rating as number),
+      reviewCount: stats.review_count as number,
     },
+    reviews: reviews.map((r): PublicReview => ({ rating: r.rating as number, body: r.body as string, createdAt: iso(r.created_at) ?? "" })),
     products: products.map(mapProduct),
     faqs: faqs.map((f) => ({ q: f.q as string, a: f.a as string })),
   };

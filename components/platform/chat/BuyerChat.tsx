@@ -5,6 +5,8 @@ import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowLeft, Languages, Mic, RefreshCw, Send, Store, Wifi, WifiOff } from "lucide-react";
 import VoiceInput from "@/components/platform/voice/VoiceInput";
+import PushToggle from "@/components/platform/PushToggle";
+import SelectionChip from "./SelectionChip";
 import { usePrefs } from "@/components/platform/Prefs";
 import { LangBadge } from "@/components/platform/ui";
 import { connect, onConnection, onMessage, sendText, type Session } from "@/lib/nexconn-client";
@@ -149,7 +151,9 @@ export default function BuyerChat({ slug }: { slug: string }) {
           () => alive && setConnected(true),
           () => alive && setConnected(false),
         );
-        const first = await api<BuyerThreadView>("/api/buyer/threads", { method: "POST", json: { sellerSlug: slug, productId: productParam ?? undefined } });
+        const qty = qtyParam && /^\d{1,2}$/.test(qtyParam) ? Number(qtyParam) : undefined;
+        const selection = productParam && (colourParam || qty) ? { colour: colourParam ?? undefined, qty } : undefined;
+        const first = await api<BuyerThreadView>("/api/buyer/threads", { method: "POST", json: { sellerSlug: slug, productId: productParam ?? undefined, selection } });
         if (!alive) return;
         threadIdRef.current = first.thread.id;
         applyView(first);
@@ -163,7 +167,7 @@ export default function BuyerChat({ slug }: { slug: string }) {
     return () => {
       alive = false;
     };
-  }, [attempt, slug, productParam, applyView]);
+  }, [attempt, slug, productParam, colourParam, qtyParam, applyView]);
 
   useEffect(() => {
     if (phase !== "ready") return;
@@ -396,6 +400,13 @@ export default function BuyerChat({ slug }: { slug: string }) {
       </header>
 
       {product && <ProductBar product={product} sellerSlug={seller.slug} />}
+      {product && view.selection && (
+        <div className="border-b border-slate-200 bg-slate-50 px-4 pb-2 sm:px-6">
+          <div className="mx-auto max-w-3xl">
+            <SelectionChip selection={view.selection} />
+          </div>
+        </div>
+      )}
       <StatusBanner
         view={view}
         busy={busy}
@@ -404,6 +415,14 @@ export default function BuyerChat({ slug }: { slug: string }) {
         onRate={rate}
         onNewQuestion={() => composerRef.current?.focus()}
       />
+      {status === "waiting" && (
+        <div data-testid="chat-waiting-notify" className="border-b border-slate-200 bg-white px-4 pb-3 sm:px-6">
+          <div className="mx-auto flex max-w-3xl flex-wrap items-center gap-x-3 gap-y-2">
+            <p className="text-sm text-slate-600">Get notified when the shop replies</p>
+            <PushToggle audience="buyer" compact />
+          </div>
+        </div>
+      )}
       {notice && (
         <p role="status" data-testid="chat-notice" className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-center text-sm text-amber-900 sm:px-6">
           {notice}

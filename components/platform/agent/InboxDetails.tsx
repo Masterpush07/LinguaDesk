@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import Link from "next/link";
 import { ArrowLeft, ArrowRightLeft, Bot, ChevronDown, CircleCheck, Flame, History, NotebookPen, PackagePlus, RotateCcw, Sparkles, UserCheck } from "lucide-react";
 import OrderBuilder from "@/components/platform/agent/OrderBuilder";
 import { focusRing, Initials, LangPill, StatusPill, statusHint } from "@/components/platform/agent/desk-ui";
@@ -243,6 +244,11 @@ export default function InboxDetails({ detail, staff, onBack, onAction, onChange
         <p className="text-sm text-slate-200" data-testid="ai-summary-text">
           {thread.summary ?? "No summary yet. The AI writes one when it asks for an agent."}
         </p>
+        {owner && events.some((e) => e.type === "handoff" && e.payload.reason !== "ai_unavailable") && (
+          <Link href={`/seller/knowledge?thread=${encodeURIComponent(thread.id)}`} data-testid="teach-assistant-link" className={`mt-2 inline-block text-xs font-medium text-violet-300 underline underline-offset-2 hover:text-violet-200 ${focusRing}`}>
+            Teach the assistant
+          </Link>
+        )}
       </Section>
 
       <Section title="Order card" icon={<PackagePlus className="h-3.5 w-3.5" aria-hidden="true" />} testId="order-builder-section">

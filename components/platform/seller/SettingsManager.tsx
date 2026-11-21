@@ -1,13 +1,14 @@
 "use client";
 
-import { useState, useSyncExternalStore } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { ExternalLink, LogOut, Save } from "lucide-react";
 import { signOut as signOutRequest } from "@/components/platform/auth/session";
 import { LanguagePicker } from "@/components/platform/seller/LanguagePicker";
-import { BTN_GHOST, BTN_PRIMARY, Card, CopyButton, ErrorBlock, FieldError, FOCUS, INPUT, Label, LoadingBlock, Notice } from "@/components/platform/seller/ui";
+import { BTN_GHOST, BTN_PRIMARY, Card, CopyButton, ErrorBlock, FieldError, FOCUS, INPUT, Label, LoadingBlock, Notice, Toggle } from "@/components/platform/seller/ui";
 import { NextAction } from "@/components/platform/ui";
 import { api } from "@/lib/v2/client";
+import { DAYS, DAY_NAMES, isConfigured, type Day, type WeekHours } from "@/lib/v2/hours";
 import { errorMessage, useApi } from "@/lib/v2/seller-hooks";
 import { settingsPayload, type SettingsDto } from "@/lib/v2/seller-types";
 
@@ -20,6 +21,9 @@ const POLICIES = [
   ["care", "Care instructions"],
 ] as const;
 
+type DayForm = { open: boolean; from: string; to: string };
+type HoursForm = Record<Day, DayForm>;
+
 type Form = {
   name: string;
   agentName: string;
@@ -27,6 +31,9 @@ type Form = {
   about: string;
   country: string;
   hours: string;
+  businessHours: HoursForm;
+  timezone: string;
+  awayMessage: string;
   languages: string[];
   responseTargetMin: string;
   freeAbove: string;
@@ -37,6 +44,30 @@ type Form = {
   policies: SettingsDto["policies"];
 };
 
+const DEFAULT_FROM = "09:00";
+const DEFAULT_TO = "18:00";
+const WEEKDAYS: Day[] = ["mon", "tue", "wed", "thu", "fri"];
+
+const hoursPreset = (days: readonly Day[]): HoursForm =>
+  Object.fromEntries(DAYS.map((d) => [d, { open: days.includes(d), from: DEFAULT_FROM, to: DEFAULT_TO }])) as HoursForm;
+
+const hoursToForm = (hours: WeekHours): HoursForm =>
+  Object.fromEntries(
+    DAYS.map((d) => {
+      const range = hours[d];
+      return [d, range ? { open: true, from: range.open, to: range.close } : { open: false, from: DEFAULT_FROM, to: DEFAULT_TO }];
+    }),
+  ) as HoursForm;
+
+// A shop with no open day is saved as an empty schedule, which means always open.
+const hoursPayload = (form: HoursForm): WeekHours => {
+  if (!DAYS.some((d) => form[d].open)) return {};
+  return Object.fromEntries(DAYS.map((d) => [d, form[d].open ? { open: form[d].from, close: form[d].to } : null]));
+};
+
+const browserZone = () => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+
+// Settings only render in the browser after loading, so the browser's zone is a safe default when no hours were ever saved.
 const toForm = (s: SettingsDto): Form => ({
   name: s.name,
   agentName: s.agentName,
@@ -44,6 +75,9 @@ const toForm = (s: SettingsDto): Form => ({
   about: s.about,
   country: s.country,
   hours: s.hours,
+  businessHours: hoursToForm(s.businessHours),
+  timezone: !isConfigured(s.businessHours) && s.timezone === "UTC" ? browserZone() : s.timezone,
+  awayMessage: s.awayMessage,
   languages: s.languages,
   responseTargetMin: String(s.responseTargetMin),
   freeAbove: String(s.shipping.freeAbove),
@@ -66,6 +100,13 @@ function validate(f: Form): Record<string, string> {
   if (f.about.length > 600) e.about = "The description must be at most 600 characters.";
   if (f.country.length > 100) e.country = "The country must be at most 100 characters.";
   if (f.hours.length > 120) e.hours = "The support hours must be at most 120 characters.";
+  for (const d of DAYS) {
+    const row = f.businessHours[d];
+    if (!row.open) continue;
+    if (!row.from || !row.to) e[`day-${d}`] = `${DAY_NAMES[d]}: enter an opening and a closing time.`;
+    else if (row.to <= row.from) e[`day-${d}`] = `${DAY_NAMES[d]}: the closing time must be after the opening time.`;
+  }
+  if (f.awayMessage.length > 200) e.awayMessage = "The away message must be at most 200 characters.";
   if (!whole(f.responseTargetMin, 1, 1440)) e.responseTargetMin = "Enter the response target as whole minutes from 1 to 1440.";
   if (!whole(f.freeAbove, 0, 100000)) e.freeAbove = "Enter a whole number of dollars from 0 to 100000. Use 0 for no free-shipping threshold.";
   if (!whole(f.fee, 0, 1000)) e.fee = "Enter a whole number of dollars from 0 to 1000. Use 0 for free shipping.";
@@ -82,6 +123,12 @@ function SettingsForm({ initial }: { initial: SettingsDto }) {
   const origin = useSyncExternalStore(originStore.subscribe, originStore.client, originStore.server);
   const [saved, setSaved] = useState(initial);
   const [form, setForm] = useState<Form>(() => toForm(initial));
+  const zones = useMemo(() => {
+    const supported = (Intl as unknown as { supportedValuesOf?: (key: string) => string[] }).supportedValuesOf?.("timeZone") ?? [];
+    return Array.from(new Set(["UTC", ...supported, form.timezone])).sort();
+    // The list only needs to include the zone selected when the form opened.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState("");
@@ -112,6 +159,9 @@ function SettingsForm({ initial }: { initial: SettingsDto }) {
           about: form.about.trim(),
           country: form.country.trim(),
           hours: form.hours.trim(),
+          businessHours: hoursPayload(form.businessHours),
+          timezone: form.timezone,
+          awayMessage: form.awayMessage.trim(),
           languages: form.languages,
           responseTargetMin: Number(form.responseTargetMin),
           shipping: {
@@ -192,6 +242,58 @@ function SettingsForm({ initial }: { initial: SettingsDto }) {
             <input id="st-hours" value={form.hours} onChange={(e) => set("hours", e.target.value)} aria-describedby="st-hours-error" aria-invalid={!!errors.hours} data-testid="settings-hours-input" className={cls("hours")} />
             <FieldError id="st-hours-error" message={errors.hours} testId="settings-hours-error" />
           </div>
+        </div>
+      </Card>
+
+      <Card testId="settings-business-hours">
+        <h2 className="font-heading text-lg font-semibold text-slate-900">Business hours</h2>
+        <p className="mt-0.5 text-sm text-slate-500">
+          When the shop is closed, the assistant tells customers when the team is back, and the response-time clock for a new request starts at the next opening. Leave every day switched off to be available at all times.
+        </p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button type="button" onClick={() => set("businessHours", hoursPreset(WEEKDAYS))} data-testid="settings-hours-preset-weekdays" className={`${BTN_GHOST} !px-3 !py-1.5`}>Monday to Friday, 09:00 to 18:00</button>
+          <button type="button" onClick={() => set("businessHours", hoursPreset(DAYS))} data-testid="settings-hours-preset-every-day" className={`${BTN_GHOST} !px-3 !py-1.5`}>Every day, 09:00 to 18:00</button>
+        </div>
+        <ul className="mt-4 divide-y divide-slate-100" aria-label="Opening times by weekday">
+          {DAYS.map((d) => {
+            const row = form.businessHours[d];
+            const setRow = (patch: Partial<DayForm>) => set("businessHours", { ...form.businessHours, [d]: { ...row, ...patch } });
+            const bad = !!errors[`day-${d}`];
+            return (
+              <li key={d} data-testid={`settings-hours-row-${d}`} className="py-2.5">
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                  <div className="flex w-32 items-center gap-3">
+                    <Toggle checked={row.open} onChange={(v) => setRow({ open: v })} label={`${DAY_NAMES[d]} open`} testId={`settings-hours-${d}-open`} />
+                    <span className="text-sm font-medium text-slate-800">{DAY_NAMES[d]}</span>
+                  </div>
+                  {row.open ? (
+                    <div className="flex items-center gap-2">
+                      <input type="time" aria-label={`${DAY_NAMES[d]} opening time`} value={row.from} onChange={(e) => setRow({ from: e.target.value })} aria-invalid={bad} data-testid={`settings-hours-${d}-from`} className={`${INPUT} w-32 ${bad ? "border-red-400" : ""}`} />
+                      <span className="text-sm text-slate-500">to</span>
+                      <input type="time" aria-label={`${DAY_NAMES[d]} closing time`} value={row.to} onChange={(e) => setRow({ to: e.target.value })} aria-invalid={bad} data-testid={`settings-hours-${d}-to`} className={`${INPUT} w-32 ${bad ? "border-red-400" : ""}`} />
+                    </div>
+                  ) : (
+                    <span className="text-sm text-slate-500">Closed</span>
+                  )}
+                </div>
+                <FieldError id={`st-hours-${d}-error`} message={errors[`day-${d}`]} testId={`settings-hours-${d}-error`} />
+              </li>
+            );
+          })}
+        </ul>
+        <div className="mt-4 max-w-md">
+          <Label htmlFor="st-timezone" hint="The opening times above are in this time zone.">Time zone</Label>
+          <select id="st-timezone" value={form.timezone} onChange={(e) => set("timezone", e.target.value)} data-testid="settings-timezone-select" className={INPUT}>
+            {zones.map((z) => (
+              <option key={z} value={z}>{z}</option>
+            ))}
+          </select>
+        </div>
+        <div className="mt-4">
+          <Label htmlFor="st-away" hint="Shown to customers while the shop is closed, for example when replies resume.">Away message</Label>
+          <textarea id="st-away" rows={2} value={form.awayMessage} onChange={(e) => set("awayMessage", e.target.value)} aria-describedby="st-away-error st-away-count" aria-invalid={!!errors.awayMessage} data-testid="settings-away-message-input" className={cls("awayMessage")} />
+          <FieldError id="st-away-error" message={errors.awayMessage} testId="settings-away-message-error" />
+          {counter(form.awayMessage, 200, "st-away-count")}
         </div>
       </Card>
 

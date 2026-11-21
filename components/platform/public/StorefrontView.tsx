@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { Clock, MapPin, MessageCircle, RotateCcw, Store, Truck } from "lucide-react";
-import { NextAction, PageFallback } from "@/components/platform/ui";
+import { BadgeCheck, Clock, MapPin, MessageCircle, RotateCcw, Star, Store, Truck } from "lucide-react";
+import { NextAction, PageFallback, Rating } from "@/components/platform/ui";
 import { ErrorPanel, FOCUS, LanguageChips, PublicProductCard, TeamStatus } from "@/components/platform/public/parts";
 import { ShippingSummary } from "@/components/platform/public/ShippingSummary";
 import type { ListedProduct, ShopDetail } from "@/components/platform/public/types";
@@ -50,7 +50,7 @@ export default function StorefrontView({ slug }: { slug: string }) {
   }
   if (!data) return <PageFallback label="Loading shop" />;
 
-  const { seller, products, faqs } = data;
+  const { seller, products, faqs, reviews } = data;
   const listed: ListedProduct[] = products.map((p) => ({ ...p, seller: { slug: seller.slug, name: seller.name, country: seller.country } }));
   const extraPolicies = MORE_POLICIES.filter(([key]) => seller.policies[key]);
 
@@ -85,6 +85,9 @@ export default function StorefrontView({ slug }: { slug: string }) {
               </p>
             )}
             {seller.tagline && <p className="mt-2 max-w-xl text-slate-600">{seller.tagline}</p>}
+            <div className="mt-2" data-testid="storefront-rating">
+              <Rating value={seller.rating} count={seller.reviewCount} />
+            </div>
             <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-slate-500">
               <span data-testid="storefront-response-time">Reply target: {seller.responseTargetMin} minutes</span>
               {seller.hours && (
@@ -121,6 +124,38 @@ export default function StorefrontView({ slug }: { slug: string }) {
               <PublicProductCard key={p.id} product={p} showSeller={false} />
             ))}
           </div>
+        )}
+      </section>
+
+      <section className="mt-10" aria-labelledby="shop-reviews-heading" data-testid="storefront-reviews">
+        <h2 id="shop-reviews-heading" className="font-heading text-xl font-semibold text-slate-900">
+          Customer reviews
+        </h2>
+        {reviews.length === 0 ? (
+          <p className="mt-4 rounded-2xl border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-500" data-testid="storefront-reviews-empty">
+            No reviews yet. Only customers who received an order can leave a review.
+          </p>
+        ) : (
+          <ul className="mt-4 grid gap-4 md:grid-cols-2" data-testid="storefront-review-list">
+            {reviews.map((r, i) => (
+              <li key={`${r.createdAt}-${i}`} data-testid={`storefront-review-${i}`} className="rounded-2xl border border-slate-200 bg-white p-5">
+                <div className="flex items-center justify-between gap-3">
+                  <span role="img" aria-label={`${r.rating} out of 5 stars`} className="inline-flex gap-0.5" data-testid={`storefront-review-stars-${i}`}>
+                    {[1, 2, 3, 4, 5].map((n) => (
+                      <Star key={n} className={`h-4 w-4 ${n <= r.rating ? "fill-amber-400 text-amber-400" : "text-slate-300"}`} aria-hidden="true" />
+                    ))}
+                  </span>
+                  <time dateTime={r.createdAt} className="text-xs text-slate-500" data-testid={`storefront-review-date-${i}`}>
+                    {new Date(r.createdAt).toLocaleDateString("en-US", { dateStyle: "medium", timeZone: "UTC" })}
+                  </time>
+                </div>
+                {r.body && <p className="mt-3 text-sm leading-relaxed text-slate-700">{r.body}</p>}
+                <p className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-emerald-700" data-testid={`storefront-review-verified-${i}`}>
+                  <BadgeCheck className="h-3.5 w-3.5" aria-hidden="true" /> Verified buyer
+                </p>
+              </li>
+            ))}
+          </ul>
         )}
       </section>
 

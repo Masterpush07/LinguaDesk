@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, type ReactNode } from "react";
-import { BarChart3, BookOpen, Boxes, Headset, Languages, LayoutDashboard, LogOut, Package, Settings, Store, Users } from "lucide-react";
+import { BarChart3, BookOpen, Boxes, Headset, Languages, LayoutDashboard, LogOut, Package, Settings, Store, Undo2, Users } from "lucide-react";
 import { signOut as signOutRequest } from "@/components/platform/auth/session";
 import { Logo } from "@/components/platform/CustomerHeader";
 import { LoadingBlock } from "@/components/platform/seller/ui";
@@ -14,6 +14,7 @@ const NAV = [
   { href: "/seller", label: "Overview", icon: LayoutDashboard, exact: true },
   { href: "/seller/inventory", label: "Inventory", icon: Boxes },
   { href: "/seller/orders", label: "Orders", icon: Package },
+  { href: "/seller/returns", label: "Returns", icon: Undo2 },
   { href: "/seller/glossary", label: "AI glossary", icon: Languages },
   { href: "/seller/knowledge", label: "Knowledge base", icon: BookOpen },
   { href: "/seller/team", label: "Team", icon: Users },

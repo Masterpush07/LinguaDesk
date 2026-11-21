@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { Globe2, LogOut } from "lucide-react";
 import { deskPath, signOut, useCurrentStaff } from "@/components/platform/auth/session";
 import { usePrefs } from "@/components/platform/Prefs";
-import { LANGS } from "@/lib/platform/data";
+import { CURRENCIES, LANGS } from "@/lib/platform/data";
 import type { Currency, LangCode } from "@/lib/platform/types";
 
 const PRIMARY = [
@@ -154,9 +154,11 @@ export default function CustomerHeader() {
             Currency
           </label>
           <select id="currency-select" data-testid="currency-select" className={SELECT} value={currency} onChange={(e) => setCurrency(e.target.value as Currency)}>
-            <option value="USD">USD $</option>
-            <option value="INR">INR ₹</option>
-            <option value="EUR">EUR €</option>
+            {CURRENCIES.map((c) => (
+              <option key={c.code} value={c.code}>
+                {c.code} {c.symbol.trim()}
+              </option>
+            ))}
           </select>
           <span className="mx-1 hidden h-5 w-px bg-slate-200 sm:block" aria-hidden="true" />
           <AuthControl />

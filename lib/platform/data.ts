@@ -63,14 +63,26 @@ export const AGENTS: Agent[] = [
 
 export const getAgent = (id?: string) => AGENTS.find((a) => a.id === id);
 
-// Approximate display rates for browsing prices. Orders are always charged in US dollars.
-const RATES: Record<Currency, number> = { USD: 1, INR: 83.1, EUR: 0.92 };
-const SYMBOLS: Record<Currency, string> = { USD: "$", INR: "₹", EUR: "€" };
+export const CURRENCIES: { code: Currency; symbol: string; label: string }[] = [
+  { code: "USD", symbol: "$", label: "US dollar" },
+  { code: "INR", symbol: "₹", label: "Indian rupee" },
+  { code: "EUR", symbol: "€", label: "Euro" },
+  { code: "GBP", symbol: "£", label: "British pound" },
+  { code: "JPY", symbol: "¥", label: "Japanese yen" },
+  { code: "AED", symbol: "AED ", label: "UAE dirham" },
+  { code: "AUD", symbol: "A$", label: "Australian dollar" },
+  { code: "CAD", symbol: "C$", label: "Canadian dollar" },
+];
 
-export function formatPrice(usd: number, currency: Currency = "USD"): string {
-  const value = usd * RATES[currency];
-  const rounded = currency === "INR" ? Math.round(value / 10) * 10 : Math.round(value * 100) / 100;
-  return `${SYMBOLS[currency]}${rounded.toLocaleString("en-US", { maximumFractionDigits: currency === "INR" ? 0 : 2 })}`;
+// Used until live rates load, and when the rate service cannot be reached. Orders are always charged in US dollars.
+export const FALLBACK_RATES: Record<Currency, number> = { USD: 1, INR: 92.9, EUR: 0.91, GBP: 0.76, JPY: 159, AED: 3.67, AUD: 1.5, CAD: 1.43 };
+const SYMBOLS = Object.fromEntries(CURRENCIES.map((c) => [c.code, c.symbol])) as Record<Currency, string>;
+
+export function formatPrice(usd: number, currency: Currency = "USD", rates?: Partial<Record<string, number>>): string {
+  const rate = (currency === "USD" ? 1 : rates?.[currency]) ?? FALLBACK_RATES[currency];
+  const value = usd * rate;
+  const digits = currency === "JPY" || currency === "INR" ? 0 : 2;
+  return `${SYMBOLS[currency]}${value.toLocaleString("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits })}`;
 }
 
 export const initials = (name: string) =>

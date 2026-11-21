@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { issueAccessToken } from "@/lib/nexconn-server";
 import { clientIp, isLimited, recordEvent } from "@/lib/rate-limit";
 import { hashPasscode, newId, newNexconnId, slugify } from "@/lib/v2/crypto";
+import { generateRecoveryCode, normalizeRecoveryCode } from "@/lib/v2/recovery";
 import { setStaffCookie } from "@/lib/v2/session";
 
 const LANG = /^[a-z]{2}$/;
@@ -52,9 +53,12 @@ export async function POST(req: NextRequest) {
   const hash = await hashPasscode(passcode);
   await sql`INSERT INTO sellers (id, slug, shop_name, owner_name, country, tagline, languages, nexconn_user_id)
     VALUES (${sellerId}, ${slug}, ${shopName}, ${ownerName}, ${country}, ${tagline}, ${languages}, ${nexconnUserId})`;
-  await sql`INSERT INTO staff (id, seller_id, name, role, languages, passcode_hash, last_seen)
-    VALUES (${staffId}, ${sellerId}, ${ownerName}, 'owner', ${languages}, ${hash}, now())`;
+  const recoveryCode = generateRecoveryCode();
+  const recoveryHash = await hashPasscode(normalizeRecoveryCode(recoveryCode));
+  await sql`INSERT INTO staff (id, seller_id, name, role, languages, passcode_hash, recovery_hash, last_seen)
+    VALUES (${staffId}, ${sellerId}, ${ownerName}, 'owner', ${languages}, ${hash}, ${recoveryHash}, now())`;
   await recordEvent(ipKey);
   await setStaffCookie(staffId);
-  return NextResponse.json({ ok: true, seller: { id: sellerId, slug, name: shopName }, staff: { id: staffId, name: ownerName, role: "owner" } });
+  // The recovery code is returned only here; it cannot be read again.
+  return NextResponse.json({ ok: true, seller: { id: sellerId, slug, name: shopName }, staff: { id: staffId, name: ownerName, role: "owner" }, recoveryCode });
 }

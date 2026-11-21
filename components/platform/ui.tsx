@@ -108,9 +108,16 @@ export function ProductImage({ product, className = "" }: { product: Pick<Produc
   );
 }
 
-export function Rating({ value, count }: { value: number; count?: number }) {
+export function Rating({ value, count }: { value: number | null; count?: number }) {
+  if (value === null || count === 0) {
+    return (
+      <span className="text-xs text-slate-500" data-testid="rating-none">
+        No reviews yet
+      </span>
+    );
+  }
   return (
-    <span className="inline-flex items-center gap-1 text-xs text-slate-600">
+    <span className="inline-flex items-center gap-1 text-xs text-slate-600" data-testid="rating-value">
       <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" aria-hidden="true" />
       <span className="font-medium text-slate-800">{value.toFixed(1)}</span>
       {count !== undefined && <span className="text-slate-400">({count})</span>}

@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { CheckCircle2, Eye, PackageCheck, Truck } from "lucide-react";
+import { CheckCircle2, ExternalLink, Eye, PackageCheck, Truck } from "lucide-react";
 import { BTN_DANGER, BTN_GHOST, BTN_PRIMARY, Card, Dialog, ErrorBlock, FieldError, FOCUS, INPUT, Label, LoadingBlock, Notice } from "@/components/platform/seller/ui";
 import { EmptyState, NextAction } from "@/components/platform/ui";
 import { api } from "@/lib/v2/client";
+import { trackingUrl } from "@/lib/v2/tracking";
 import { errorMessage, useApi } from "@/lib/v2/seller-hooks";
 import { formatDateTime, formatUsd, ORDER_STATUSES, type OrderDto, type OrderStatus } from "@/lib/v2/seller-types";
 
@@ -300,6 +301,19 @@ export default function OrdersManager() {
                     <p className="mt-2 text-xs text-slate-500">Mark the order as packed first. Shipping is available once it is packed.</p>
                   )}
                 </>
+              )}
+              {selected.tracking && (
+                <a
+                  href={trackingUrl(selected.courier, selected.tracking) ?? undefined}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  data-testid="order-track-link"
+                  className={`mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-indigo-700 underline-offset-2 hover:underline ${FOCUS}`}
+                >
+                  <ExternalLink className="h-4 w-4" aria-hidden="true" />
+                  Track this parcel
+                  <span className="sr-only"> (opens in a new tab)</span>
+                </a>
               )}
               <FieldError id="order-detail-error" message={detailError} testId="order-detail-error" />
             </section>

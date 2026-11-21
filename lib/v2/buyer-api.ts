@@ -3,7 +3,9 @@ import { parseOrderCard } from "@/lib/catalog";
 import { db } from "@/lib/db";
 import type { BuyerMessage, BuyerOrder, BuyerThreadView, OrderStatus, ThreadStatus } from "@/lib/v2/buyer-types";
 import { newId } from "@/lib/v2/crypto";
+import { hoursStatus } from "@/lib/v2/hours";
 import { currentBuyerId } from "@/lib/v2/session";
+import { readSelection } from "@/lib/v2/selection";
 import { assistantName } from "@/lib/v2/shop";
 
 // Server-only helpers shared by the /api/buyer routes. Every query here is scoped to the signed-in buyer.
@@ -25,9 +27,8 @@ export const iso = (value: unknown): string | null => (value ? new Date(value as
 
 export async function loadThreadView(threadId: string, buyerId: string): Promise<BuyerThreadView | null> {
   const sql = db();
-  const [t] = await sql`SELECT t.id, t.status, t.language, t.handoff_at, t.sla_due_at, t.rating, t.product_id,
-      st.name AS staff_name, s.id AS seller_id, s.slug, s.shop_name, s.agent_name, s.nexconn_user_id, s.country, s.languages, s.response_target_min,
-      EXISTS (SELECT 1 FROM staff o WHERE o.seller_id = s.id AND o.available AND o.last_seen > now() - make_interval(secs => ${ONLINE_SECONDS})) AS team_online
+  const [t] = await sql`SELECT t.id, t.status, t.language, t.handoff_at, t.sla_due_at, t.rating, t.product_id, t.selection,
+      st.name AS staff_name, s.id AS seller_id, s.slug, s.shop_name, s.agent_name, s.nexconn_user_id, s.country, s.languages,       s.response_target_min, s.business_hours, s.timezone, s.away_message, (SELECT 1 FROM staff o WHERE o.seller_id = s.id AND o.available AND o.last_seen > now() - make_interval(secs => ${ONLINE_SECONDS})) AS team_online
     FROM threads t
     JOIN sellers s ON s.id = t.seller_id
     LEFT JOIN staff st ON st.id = t.assigned_staff_id
@@ -51,6 +52,7 @@ export async function loadThreadView(threadId: string, buyerId: string): Promise
       ) recent ORDER BY created_at`,
   ]);
   const p = productRows[0];
+  const hours = hoursStatus(t.business_hours, t.timezone, new Date());
 
   const messages = rows.map(
     (m): BuyerMessage => ({
@@ -89,8 +91,16 @@ export async function loadThreadView(threadId: string, buyerId: string): Promise
       languages: t.languages,
       teamOnline: !!t.team_online,
       responseTargetMin: t.response_target_min,
+      hours: {
+        configured: hours.configured,
+        openNow: hours.openNow,
+        nextOpening: hours.nextOpening?.label ?? null,
+        timeZone: t.timezone,
+        awayMessage: t.away_message ?? "",
+      },
     },
     product: p ? { id: p.id, name: p.name, priceUsd: p.price_usd, imageUrl: p.image_url ?? null, stock: p.stock } : null,
+    selection: p ? readSelection(t.selection) : null,
     messages,
   };
 }
@@ -107,6 +117,11 @@ export function toBuyerOrder(r: Record<string, unknown>): BuyerOrder {
     courier: (r.courier as string | null) ?? null,
     tracking: (r.tracking as string | null) ?? null,
     card: r.card ? parseOrderCard(JSON.stringify(r.card)) : null,
+    cancelReason: (r.cancel_reason as string | null) ?? null,
+    cancelledAt: iso(r.cancelled_at),
+    returnEligible: false,
+    returnRequest: null,
+    review: null,
   };
 }
 

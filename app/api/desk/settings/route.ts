@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { slugify } from "@/lib/v2/crypto";
 import { requireStaff } from "@/lib/v2/guard";
 import { Check, fail, invalidBody, readJson } from "@/lib/v2/seller-api";
+import { validateHours, validTimeZone, type WeekHours } from "@/lib/v2/hours";
 import type { SettingsDto } from "@/lib/v2/seller-types";
 
 const TONES = ["formal", "neutral", "friendly"] as const;
@@ -20,7 +21,8 @@ const str = (v: unknown) => (typeof v === "string" ? v : "");
 const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
 
 async function load(sellerId: string): Promise<SettingsDto | null> {
-  const [s] = await db()`SELECT slug, shop_name, agent_name, tagline, about, country, languages, hours, tone, response_target_min, shipping, policies
+  const [s] = await db()`SELECT slug, shop_name, agent_name, tagline, about, country, languages, hours, tone, response_target_min, shipping, policies,
+      business_hours, timezone, away_message
     FROM sellers WHERE id = ${sellerId}`;
   if (!s) return null;
   const ship = (s.shipping ?? {}) as Record<string, unknown>;
@@ -33,6 +35,9 @@ async function load(sellerId: string): Promise<SettingsDto | null> {
     country: s.country,
     languages: s.languages,
     hours: s.hours,
+    businessHours: validateHours(s.business_hours).ok ? (s.business_hours as WeekHours) : {},
+    timezone: validTimeZone(s.timezone) ? s.timezone : "UTC",
+    awayMessage: s.away_message ?? "",
     tone: TONES.includes(s.tone) ? s.tone : "neutral",
     responseTargetMin: s.response_target_min,
     shipping: {
@@ -79,6 +84,18 @@ export async function PUT(req: NextRequest) {
   const about = check.text(body.about, "About", 600);
   const country = check.text(body.country, "Country", 100);
   const hours = check.text(body.hours, "Support hours", 120);
+  let businessHours: string | null = null;
+  if (body.businessHours !== undefined) {
+    const parsed = validateHours(body.businessHours);
+    if (parsed.ok) businessHours = JSON.stringify(parsed.hours);
+    else check.errors.push(parsed.error);
+  }
+  let timezone: string | null = null;
+  if (body.timezone !== undefined) {
+    if (validTimeZone(body.timezone)) timezone = body.timezone;
+    else check.errors.push("Time zone must be a valid zone such as Asia/Kolkata or America/New_York.");
+  }
+  const awayMessage = body.awayMessage === undefined ? null : check.text(body.awayMessage, "Away message", 200);
   const languages = check.languages(body.languages ?? ["en"], "Languages", true);
   const tone = check.oneOf(body.tone, "Tone", TONES);
   const responseTargetMin = check.whole(body.responseTargetMin, "Response target (minutes)", 1, 1440);
@@ -98,7 +115,9 @@ export async function PUT(req: NextRequest) {
 
   const rows = await sql`UPDATE sellers SET shop_name = ${name}, agent_name = COALESCE(${agentName}, agent_name), tagline = ${tagline}, about = ${about}, country = ${country},
       languages = ${languages}, hours = ${hours}, tone = ${tone}, response_target_min = ${responseTargetMin},
-      shipping = ${JSON.stringify(shipping)}::jsonb, policies = ${JSON.stringify(policies)}::jsonb
+      shipping = ${JSON.stringify(shipping)}::jsonb, policies = ${JSON.stringify(policies)}::jsonb,
+      business_hours = COALESCE(${businessHours}::jsonb, business_hours), timezone = COALESCE(${timezone}, timezone),
+      away_message = COALESCE(${awayMessage}, away_message)
     WHERE id = ${auth.staff.sellerId} RETURNING id`;
   if (rows.length === 0) return fail("Shop not found.", 404);
   const saved = await load(auth.staff.sellerId);
