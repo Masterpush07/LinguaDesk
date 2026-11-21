@@ -59,6 +59,7 @@ export type BuyerThreadSummary = {
   lastAt: string;
   lastSender: BuyerMessage["sender"] | null;
   productName: string | null;
+  unread: number; // messages from the shop or its assistant the buyer has not seen yet
 };
 
 export type BuyerOrder = {

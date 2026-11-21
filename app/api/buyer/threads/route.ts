@@ -14,7 +14,8 @@ export async function GET() {
   const auth = await requireBuyer();
   if ("error" in auth) return auth.error;
   const rows = await db()`SELECT t.id, t.status, s.slug, s.shop_name, s.country, p.name AS product_name,
-      lm.text AS last_text, lm.sender AS last_sender, lm.created_at AS last_at
+      lm.text AS last_text, lm.sender AS last_sender, lm.created_at AS last_at,
+      (SELECT count(*)::int FROM thread_messages x WHERE x.thread_id = t.id AND x.sender IN ('staff', 'ai') AND x.created_at > t.buyer_read_at) AS unread
     FROM threads t
     JOIN sellers s ON s.id = t.seller_id
     LEFT JOIN products p ON p.id = t.product_id
@@ -33,6 +34,7 @@ export async function GET() {
       lastAt: iso(r.last_at) as string,
       lastSender: r.last_sender,
       productName: r.product_name ?? null,
+      unread: r.unread ?? 0,
     }),
   );
   return NextResponse.json(threads);

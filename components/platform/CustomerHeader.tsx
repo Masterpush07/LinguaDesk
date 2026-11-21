@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { Globe2, LogOut } from "lucide-react";
 import { deskPath, signOut, useCurrentStaff } from "@/components/platform/auth/session";
 import { usePrefs } from "@/components/platform/Prefs";
+import { useUnreadCount } from "@/components/platform/chat/useUnread";
 import { CURRENCIES, LANGS } from "@/lib/platform/data";
 import type { Currency, LangCode } from "@/lib/platform/types";
 
@@ -34,7 +35,7 @@ export function Logo({ dark = false }: { dark?: boolean }) {
   );
 }
 
-function NavLink({ href, label, pathname, mobile = false }: { href: string; label: string; pathname: string; mobile?: boolean }) {
+function NavLink({ href, label, pathname, mobile = false, badge = 0 }: { href: string; label: string; pathname: string; mobile?: boolean; badge?: number }) {
   const active = pathname === href || pathname.startsWith(`${href}/`);
   return (
     <Link
@@ -46,6 +47,12 @@ function NavLink({ href, label, pathname, mobile = false }: { href: string; labe
       }`}
     >
       {label}
+      {badge > 0 && (
+        <span data-testid={`${mobile ? "mobile-" : ""}nav-${label.toLowerCase()}-unread`} className="ml-1.5 inline-flex min-w-5 items-center justify-center rounded-full bg-indigo-600 px-1.5 text-[11px] font-semibold leading-5 text-white">
+          <span aria-hidden="true">{badge > 9 ? "9+" : badge}</span>
+          <span className="sr-only">{badge} unread {badge === 1 ? "message" : "messages"}</span>
+        </span>
+      )}
     </Link>
   );
 }
@@ -101,11 +108,11 @@ function AuthControl() {
 }
 
 // usePathname() on a dynamic route needs a Suspense boundary; until it resolves, links render without the active highlight.
-function NavLinks({ pathname, mobile = false }: { pathname: string; mobile?: boolean }) {
+function NavLinks({ pathname, mobile = false, unread = 0 }: { pathname: string; mobile?: boolean; unread?: number }) {
   return (
     <>
       {PRIMARY.map((item) => (
-        <NavLink key={item.href} {...item} pathname={pathname} mobile={mobile} />
+        <NavLink key={item.href} {...item} pathname={pathname} mobile={mobile} badge={item.href === "/chats" ? unread : 0} />
       ))}
       {!mobile && <span className="mx-2 h-5 w-px bg-slate-200" aria-hidden="true" />}
       {SECONDARY.map((item) => (
@@ -115,21 +122,22 @@ function NavLinks({ pathname, mobile = false }: { pathname: string; mobile?: boo
   );
 }
 
-function ActiveNavLinks({ mobile = false }: { mobile?: boolean }) {
-  return <NavLinks pathname={usePathname()} mobile={mobile} />;
+function ActiveNavLinks({ mobile = false, unread = 0 }: { mobile?: boolean; unread?: number }) {
+  return <NavLinks pathname={usePathname()} mobile={mobile} unread={unread} />;
 }
 
 // Sticky header for every customer-facing page. Full navigation shows from 1280px; narrower screens use the second row.
 export default function CustomerHeader() {
   const { language, setLanguage, currency, setCurrency } = usePrefs();
+  const unread = useUnreadCount();
 
   return (
     <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/85 backdrop-blur-xl" data-testid="customer-header">
       <div className="mx-auto flex h-16 max-w-7xl items-center gap-4 px-4 sm:px-6 lg:px-8">
         <Logo />
         <nav aria-label="Main" className="ml-2 hidden min-w-0 items-center gap-0.5 xl:flex">
-          <Suspense fallback={<NavLinks pathname="" />}>
-            <ActiveNavLinks />
+          <Suspense fallback={<NavLinks pathname="" unread={unread} />}>
+            <ActiveNavLinks unread={unread} />
           </Suspense>
         </nav>
 
@@ -165,8 +173,8 @@ export default function CustomerHeader() {
         </div>
       </div>
       <nav aria-label="Main (mobile)" className="flex gap-1 overflow-x-auto border-t border-slate-100 px-3 py-1.5 sm:px-6 xl:hidden">
-        <Suspense fallback={<NavLinks pathname="" mobile />}>
-          <ActiveNavLinks mobile />
+        <Suspense fallback={<NavLinks pathname="" mobile unread={unread} />}>
+          <ActiveNavLinks mobile unread={unread} />
         </Suspense>
       </nav>
     </header>

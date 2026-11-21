@@ -90,14 +90,22 @@ export default function ChatThreadList() {
             </span>
             <div className="min-w-0 flex-1">
               <div className="flex items-center justify-between gap-2">
-                <span className="truncate font-heading text-sm font-semibold text-slate-900">{t.seller.name}</span>
-                <span className="shrink-0 text-xs text-slate-500" data-testid={`chat-thread-time-${t.seller.slug}`}>
+                <span className={`truncate font-heading text-sm text-slate-900 ${t.unread > 0 ? "font-bold" : "font-semibold"}`}>{t.seller.name}</span>
+                <span className={`shrink-0 text-xs ${t.unread > 0 ? "font-semibold text-indigo-700" : "text-slate-500"}`} data-testid={`chat-thread-time-${t.seller.slug}`}>
                   {when(t.lastAt)}
                 </span>
               </div>
-              <p className="mt-0.5 truncate text-sm text-slate-600" data-testid={`chat-thread-preview-${t.seller.slug}`}>
-                {t.lastSender && <span className="text-slate-500">{SENDER_LABEL[t.lastSender]}: </span>}
-                {t.lastText}
+              <p className={`mt-0.5 flex items-center gap-2 text-sm ${t.unread > 0 ? "font-medium text-slate-900" : "text-slate-600"}`} data-testid={`chat-thread-preview-${t.seller.slug}`}>
+                <span className="min-w-0 flex-1 truncate">
+                  {t.lastSender && <span className={t.unread > 0 ? "" : "text-slate-500"}>{SENDER_LABEL[t.lastSender]}: </span>}
+                  {t.lastText}
+                </span>
+                {t.unread > 0 && (
+                  <span data-testid={`chat-thread-unread-${t.seller.slug}`} className="shrink-0 rounded-full bg-indigo-600 px-2 py-0.5 text-[11px] font-semibold text-white">
+                    {t.unread > 9 ? "9+" : t.unread} new
+                    <span className="sr-only"> {t.unread === 1 ? "message" : "messages"} you have not read</span>
+                  </span>
+                )}
               </p>
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 <StatusBadge status={t.status} />
