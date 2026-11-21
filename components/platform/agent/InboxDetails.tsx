@@ -73,6 +73,10 @@ function describe(e: DeskEvent): string {
       return `${who} added an internal note`;
     case "buyer_alerted":
       return `The buyer was notified (${Array.isArray(p.channels) ? p.channels.join(" and ") : "alert"})`;
+    case "order_paid":
+      return `Payment for order ${text(p.orderId)} was marked as received`;
+    case "order_unpaid":
+      return `Payment for order ${text(p.orderId)} was marked as not received`;
     default:
       return e.type.replace(/_/g, " ");
   }

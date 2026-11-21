@@ -41,7 +41,7 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
   // The status in WHERE makes concurrent updates safe: only one of two simultaneous requests can move the order.
   const [row] = await sql`UPDATE orders_v2 SET status = ${to}, courier = ${courier}, tracking = ${tracking}, updated_at = now()
     WHERE id = ${id} AND seller_id = ${staff.sellerId} AND status = ${from}
-    RETURNING id, status, total, card, courier, tracking, created_at, confirmed_at, buyer_id, thread_id`;
+    RETURNING id, status, total, card, courier, tracking, created_at, confirmed_at, buyer_id, thread_id, delivery, paid_at`;
   if (!row) return fail("This order was changed by someone else. Reload and try again.", 409);
 
   let notified: boolean | undefined;

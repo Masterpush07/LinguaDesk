@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { CheckCircle2, ExternalLink, Eye, PackageCheck, Truck } from "lucide-react";
+import { CheckCircle2, CreditCard, ExternalLink, Eye, MapPin, PackageCheck, Truck } from "lucide-react";
 import { BTN_DANGER, BTN_GHOST, BTN_PRIMARY, Card, Dialog, ErrorBlock, FieldError, FOCUS, INPUT, Label, LoadingBlock, Notice } from "@/components/platform/seller/ui";
 import { EmptyState, NextAction } from "@/components/platform/ui";
 import { api } from "@/lib/v2/client";
+import { formatDelivery } from "@/lib/v2/delivery";
 import { trackingUrl } from "@/lib/v2/tracking";
 import { errorMessage, useApi } from "@/lib/v2/seller-hooks";
 import { formatDateTime, formatUsd, ORDER_STATUSES, type OrderDto, type OrderStatus } from "@/lib/v2/seller-types";
@@ -38,6 +39,15 @@ function StatusPill({ order }: { order: OrderDto }) {
   return (
     <span data-testid={`order-status-${order.id}`} className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ${STATUS_STYLE[order.status]}`}>
       {STATUS_LABEL[order.status]}
+    </span>
+  );
+}
+
+function PaidPill({ order }: { order: OrderDto }) {
+  if (order.status === "proposed" || order.status === "cancelled") return null;
+  return (
+    <span data-testid={`order-paid-${order.id}`} className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ${order.paidAt ? "bg-emerald-50 text-emerald-700 ring-emerald-200" : "bg-amber-50 text-amber-700 ring-amber-200"}`}>
+      {order.paidAt ? "Paid" : "Unpaid"}
     </span>
   );
 }
@@ -80,6 +90,22 @@ export default function OrdersManager() {
       setNotice("");
       if (inDrawer) setDetailError(errorMessage(err));
       else setActionError(`Order ${o.id}: ${errorMessage(err)}`);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  // The shop records that the money arrived (or undoes it). The server replies with the time it stored.
+  const setPaid = async (o: OrderDto, paid: boolean) => {
+    setBusyId(o.id);
+    setDetailError("");
+    try {
+      const result = await api<{ paidAt: string | null }>(`/api/desk/orders/${o.id}/payment`, { method: "PATCH", json: { paid } });
+      update((list) => list.map((x) => (x.id === o.id ? { ...x, paidAt: result.paidAt } : x)));
+      setNotice(paid ? `Order ${o.id} is marked as paid. The customer was told in the chat.` : `Order ${o.id} is marked as not paid.`);
+    } catch (err) {
+      setNotice("");
+      setDetailError(errorMessage(err));
     } finally {
       setBusyId(null);
     }
@@ -137,6 +163,7 @@ export default function OrdersManager() {
                       <p className="flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-900">
                         <span className="font-mono">{o.id}</span>
                         <StatusPill order={o} />
+                        <PaidPill order={o} />
                       </p>
                       <p className="mt-0.5 text-xs text-slate-500">
                         {o.buyerLabel} · {formatDateTime(o.createdAt)} · {o.lines.reduce((n, l) => n + l.qty, 0)} items
@@ -196,8 +223,53 @@ export default function OrdersManager() {
           <div className="space-y-5">
             <div className="flex items-center gap-2">
               <StatusPill order={selected} />
+              <PaidPill order={selected} />
               {selected.confirmedAt && <span className="text-xs text-slate-500">Confirmed {formatDateTime(selected.confirmedAt)}</span>}
             </div>
+
+            <section aria-label="Delivery address">
+              <h3 className="flex items-center gap-1.5 text-sm font-semibold text-slate-900">
+                <MapPin className="h-4 w-4 text-cyan-600" aria-hidden="true" /> Delivery address
+              </h3>
+              {selected.delivery ? (
+                <>
+                  <p data-testid="order-delivery-address" className="mt-1 whitespace-pre-line rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-800">
+                    {formatDelivery(selected.delivery)}
+                  </p>
+                  <button type="button" onClick={() => void navigator.clipboard?.writeText(formatDelivery(selected.delivery!)).then(() => setNotice("The address was copied."))} data-testid="order-copy-address" className={`${BTN_GHOST} mt-2 !px-3 !py-1.5`}>
+                    Copy address
+                  </button>
+                </>
+              ) : (
+                <p data-testid="order-delivery-none" className="mt-1 text-sm text-slate-500">
+                  {selected.status === "proposed" ? "The customer gives their address when they confirm the order." : "No address was stored for this order."}
+                </p>
+              )}
+            </section>
+
+            {selected.status !== "proposed" && selected.status !== "cancelled" && (
+              <section aria-label="Payment">
+                <h3 className="flex items-center gap-1.5 text-sm font-semibold text-slate-900">
+                  <CreditCard className="h-4 w-4 text-cyan-600" aria-hidden="true" /> Payment
+                </h3>
+                <p className="mt-1 text-xs text-slate-500">The customer pays you directly through your payment link. Mark the order as paid once the money has arrived; LinguaDesk does not see your payments.</p>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  {selected.paidAt ? (
+                    <>
+                      <span data-testid="order-paid-at" className="text-sm text-emerald-700">Paid {formatDateTime(selected.paidAt)}</span>
+                      <button type="button" disabled={busyId === selected.id} onClick={() => void setPaid(selected, false)} data-testid="order-mark-unpaid" className={`${BTN_GHOST} !px-3 !py-1.5`}>
+                        Mark as not paid
+                      </button>
+                    </>
+                  ) : (
+                    <button type="button" disabled={busyId === selected.id} onClick={() => void setPaid(selected, true)} data-testid="order-mark-paid" className={BTN_PRIMARY}>
+                      <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+                      Mark as paid
+                    </button>
+                  )}
+                </div>
+              </section>
+            )}
 
             <section aria-label="Items in this order">
               <h3 className="text-sm font-semibold text-slate-900">Items</h3>

@@ -1,3 +1,4 @@
+import { readDelivery } from "@/lib/v2/delivery";
 import { iso, buyerLabel } from "@/lib/v2/seller-api";
 import type { OrderDto, OrderStatus } from "@/lib/v2/seller-types";
 
@@ -39,6 +40,8 @@ export function orderDto(r: Row): OrderDto {
     buyerLabel: buyerLabel(r.buyer_id as string),
     threadId: (r.thread_id as string | null) ?? null,
     lines,
+    delivery: readDelivery(r.delivery),
+    paidAt: iso(r.paid_at),
   };
 }
 

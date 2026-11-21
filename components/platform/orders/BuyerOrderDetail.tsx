@@ -6,8 +6,11 @@ import { Check, ExternalLink, MessageCircle, RefreshCw, Truck } from "lucide-rea
 import { CurrencyNote, Price, usePrefs } from "@/components/platform/Prefs";
 import { api, ApiError } from "@/lib/v2/client";
 import type { BuyerOrder } from "@/lib/v2/buyer-types";
+import type { Delivery } from "@/lib/v2/delivery";
 import { trackingUrl } from "@/lib/v2/tracking";
 import CopyTracking from "./CopyTracking";
+import DeliveryDialog from "./DeliveryDialog";
+import { DeliveryCard, PaymentCard } from "./OrderCheckout";
 import { CancelOrder, ReturnSection, ReviewSection } from "./OrderAfterSales";
 import { ORDER_STEPS, OrderStatusPill, shortDate } from "./orderStatus";
 
@@ -18,6 +21,7 @@ const FOCUS = "focus-visible:outline-none focus-visible:ring-2 focus-visible:rin
 export default function BuyerOrderDetail({ id }: { id: string }) {
   const [state, setState] = useState<State>({ kind: "loading" });
   const [confirming, setConfirming] = useState(false);
+  const [askAddress, setAskAddress] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const { currency } = usePrefs();
 
@@ -38,11 +42,12 @@ export default function BuyerOrderDetail({ id }: { id: string }) {
     return () => window.removeEventListener("focus", onFocus);
   }, [load]);
 
-  async function confirm() {
+  async function confirm(delivery: Delivery) {
     setConfirming(true);
     setActionError(null);
     try {
-      await api<{ ok: boolean }>(`/api/buyer/orders/${encodeURIComponent(id)}/confirm`, { method: "POST", json: {} });
+      await api<{ ok: boolean }>(`/api/buyer/orders/${encodeURIComponent(id)}/confirm`, { method: "POST", json: { delivery } });
+      setAskAddress(false);
       await load();
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "The order could not be confirmed. Please try again.");
@@ -278,11 +283,17 @@ export default function BuyerOrderDetail({ id }: { id: string }) {
             )}
           </section>
 
+          <DeliveryCard order={order} />
+          <PaymentCard order={order} />
+
           <section aria-label="Order actions" className="space-y-3 rounded-2xl border border-slate-200 bg-white p-5" data-testid="order-help-card">
             {order.status === "proposed" && (
               <button
                 type="button"
-                onClick={() => void confirm()}
+                onClick={() => {
+                  setActionError(null);
+                  setAskAddress(true);
+                }}
                 disabled={confirming}
                 data-testid="order-confirm-btn"
                 className={`inline-flex w-full items-center justify-center rounded-full bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 motion-reduce:transition-none disabled:cursor-not-allowed disabled:bg-slate-300 ${FOCUS}`}
@@ -309,6 +320,9 @@ export default function BuyerOrderDetail({ id }: { id: string }) {
           <ReviewSection order={order} onDone={load} />
         </div>
       </div>
+      {askAddress && order.status === "proposed" && (
+        <DeliveryDialog shopName={order.seller.name} busy={confirming} error={actionError} onSubmit={(d) => void confirm(d)} onClose={() => setAskAddress(false)} />
+      )}
     </>
   );
 }

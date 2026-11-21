@@ -14,6 +14,8 @@ import { LANGS } from "@/lib/platform/data";
 import type { LangCode } from "@/lib/platform/types";
 import { api, ApiError } from "@/lib/v2/client";
 import type { BuyerThreadView } from "@/lib/v2/buyer-types";
+import type { Delivery } from "@/lib/v2/delivery";
+import DeliveryDialog from "@/components/platform/orders/DeliveryDialog";
 import BuyerBubble from "./BuyerBubble";
 import { chipText, orderText, type ChipKey } from "./chips";
 import { FOCUS, OrderCardView, ProductBar, SendFailedPanel, StatusBanner, TypingIndicator } from "./ChatParts";
@@ -60,6 +62,7 @@ export default function BuyerChat({ slug }: { slug: string }) {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [orderBusy, setOrderBusy] = useState<string | null>(null);
+  const [deliveryFor, setDeliveryFor] = useState<string | null>(null); // the order waiting for an address
   const [orderError, setOrderError] = useState<{ id: string; message: string } | null>(null);
   const [voiceOpen, setVoiceOpen] = useState(false);
 
@@ -294,11 +297,12 @@ export default function BuyerChat({ slug }: { slug: string }) {
   const cancelHandoff = () => void run(() => api<BuyerThreadView>(`${threadPath}/handoff`, { method: "DELETE" }));
   const rate = (rating: number) => void run(() => api<unknown>(`${threadPath}/rate`, { method: "POST", json: { rating } }).then(() => undefined));
 
-  async function confirmOrder(orderId: string) {
+  async function confirmOrder(orderId: string, delivery: Delivery) {
     setOrderBusy(orderId);
     setOrderError(null);
     try {
-      await api<{ ok: boolean }>(`/api/buyer/orders/${encodeURIComponent(orderId)}/confirm`, { method: "POST", json: {} });
+      await api<{ ok: boolean }>(`/api/buyer/orders/${encodeURIComponent(orderId)}/confirm`, { method: "POST", json: { delivery } });
+      setDeliveryFor(null);
       await refresh();
       refreshSoon();
     } catch (err) {
@@ -461,7 +465,10 @@ export default function BuyerChat({ slug }: { slug: string }) {
                     status={m.orderStatus}
                     busy={orderBusy === m.orderId}
                     error={orderError?.id === m.orderId ? orderError.message : null}
-                    onConfirm={(id) => void confirmOrder(id)}
+                    onConfirm={(id) => {
+                      setOrderError(null);
+                      setDeliveryFor(id);
+                    }}
                   />
                 </div>
               )}
@@ -579,6 +586,15 @@ export default function BuyerChat({ slug }: { slug: string }) {
           </p>
         </div>
       </div>
+      {deliveryFor && (
+        <DeliveryDialog
+          shopName={seller.name}
+          busy={orderBusy === deliveryFor}
+          error={orderError?.id === deliveryFor ? orderError.message : null}
+          onSubmit={(delivery) => void confirmOrder(deliveryFor, delivery)}
+          onClose={() => setDeliveryFor(null)}
+        />
+      )}
     </div>
   );
 }

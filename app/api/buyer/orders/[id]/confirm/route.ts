@@ -4,19 +4,31 @@ import { db } from "@/lib/db";
 import { sendDirectText } from "@/lib/nexconn-server";
 import { notFound, requireBuyer } from "@/lib/v2/buyer-api";
 import { newId } from "@/lib/v2/crypto";
+import { validateDelivery } from "@/lib/v2/delivery";
 import { dispatch, logEvent } from "@/lib/v2/threads";
 
 const ENGLISH_THANKS = "Order confirmed. Thank you.";
 
-// The buyer confirms a proposed order. The status change is one atomic UPDATE, so a second tap only reports that it is already confirmed.
-export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+// The buyer confirms a proposed order and gives the delivery address. The status change is one atomic UPDATE, so a second tap only reports that it is already confirmed.
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await requireBuyer();
   if ("error" in auth) return auth.error;
   const { id } = await params;
   const sql = db();
 
-  const claimed = await sql`UPDATE orders_v2 SET status = 'confirmed', confirmed_at = now(), updated_at = now()
-    WHERE id = ${id} AND buyer_id = ${auth.buyerId} AND status = 'proposed' RETURNING seller_id, card, total`;
+  const body = (await req.json().catch(() => null)) as { delivery?: unknown } | null;
+  const parsed = validateDelivery(body?.delivery);
+  if (!parsed.ok) {
+    // An order that is no longer waiting for confirmation keeps its old answers; only a waiting one needs an address.
+    const [waiting] = await sql`SELECT status FROM orders_v2 WHERE id = ${id} AND buyer_id = ${auth.buyerId}`;
+    if (!waiting) return notFound("Order");
+    if (waiting.status === "proposed") return NextResponse.json({ error: parsed.error, field: parsed.field ?? null }, { status: 400 });
+  }
+
+  const claimed = parsed.ok
+    ? await sql`UPDATE orders_v2 SET status = 'confirmed', confirmed_at = now(), updated_at = now(), delivery = ${JSON.stringify(parsed.delivery)}::jsonb
+    WHERE id = ${id} AND buyer_id = ${auth.buyerId} AND status = 'proposed' RETURNING seller_id, card, total`
+    : [];
   if (claimed.length === 0) {
     const [existing] = await sql`SELECT status FROM orders_v2 WHERE id = ${id} AND buyer_id = ${auth.buyerId}`;
     if (!existing) return notFound("Order");
@@ -44,7 +56,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     VALUES (${messageId}, ${threadId}, 'ai', ${thanks}, ${thanks === ENGLISH_THANKS ? null : ENGLISH_THANKS}, true) ON CONFLICT DO NOTHING`;
 
   const lines = (card?.lines ?? []).map((l) => `${l.qty} x ${l.name}`).join(", ");
-  const summary = `The buyer confirmed the order (${lines || "see the order"}, total $${total}). Next step: arrange payment and shipping.`;
+  const summary = `The buyer confirmed the order (${lines || "see the order"}, total $${total}). Ship to: ${parsed.ok ? [parsed.delivery.city, parsed.delivery.country].join(", ") : "see the order"}. Next step: arrange payment and shipping.`;
   // A conversation already with an agent or waiting keeps its place and assignment; anything else goes to the queue.
   const [thread] = await sql`UPDATE threads SET priority = CASE WHEN priority = 'critical' THEN priority ELSE 'high' END, summary = ${summary},
       last_text = ${`Order confirmed: $${total}`}, last_at = now(), resolved_at = NULL,

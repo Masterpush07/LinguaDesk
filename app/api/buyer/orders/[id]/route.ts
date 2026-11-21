@@ -9,8 +9,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const { id } = await params;
   const sql = db();
   const [[row], [ret], [rev]] = await Promise.all([
-    sql`SELECT o.id, o.thread_id, o.status, o.total, o.created_at, o.confirmed_at, o.courier, o.tracking, o.card, o.cancel_reason, o.cancelled_at,
-        o.status = 'delivered' AND o.updated_at > now() - make_interval(days => ${RETURN_WINDOW_DAYS}) AS in_window, s.slug, s.shop_name
+    sql`SELECT o.id, o.thread_id, o.status, o.total, o.created_at, o.confirmed_at, o.courier, o.tracking, o.card, o.cancel_reason, o.cancelled_at, o.delivery, o.paid_at,
+        o.status = 'delivered' AND o.updated_at > now() - make_interval(days => ${RETURN_WINDOW_DAYS}) AS in_window, s.slug, s.shop_name, s.payment_link, s.payment_instructions
       FROM orders_v2 o JOIN sellers s ON s.id = o.seller_id
       WHERE o.id = ${id} AND o.buyer_id = ${auth.buyerId}`,
     sql`SELECT id, status, reason, details, photo_asset_id, seller_note, created_at FROM return_requests

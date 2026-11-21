@@ -11,6 +11,7 @@ import { api } from "@/lib/v2/client";
 import { DAYS, DAY_NAMES, isConfigured, type Day, type WeekHours } from "@/lib/v2/hours";
 import { errorMessage, useApi } from "@/lib/v2/seller-hooks";
 import { settingsPayload, type SettingsDto } from "@/lib/v2/seller-types";
+import { PAYMENT_NOTE_MAX, validatePaymentLink } from "@/lib/v2/delivery";
 
 const POLICIES = [
   ["returns", "Returns and refunds"],
@@ -34,6 +35,8 @@ type Form = {
   businessHours: HoursForm;
   timezone: string;
   awayMessage: string;
+  paymentLink: string;
+  paymentInstructions: string;
   languages: string[];
   responseTargetMin: string;
   freeAbove: string;
@@ -78,6 +81,8 @@ const toForm = (s: SettingsDto): Form => ({
   businessHours: hoursToForm(s.businessHours),
   timezone: !isConfigured(s.businessHours) && s.timezone === "UTC" ? browserZone() : s.timezone,
   awayMessage: s.awayMessage,
+  paymentLink: s.paymentLink,
+  paymentInstructions: s.paymentInstructions,
   languages: s.languages,
   responseTargetMin: String(s.responseTargetMin),
   freeAbove: String(s.shipping.freeAbove),
@@ -107,6 +112,9 @@ function validate(f: Form): Record<string, string> {
     else if (row.to <= row.from) e[`day-${d}`] = `${DAY_NAMES[d]}: the closing time must be after the opening time.`;
   }
   if (f.awayMessage.length > 200) e.awayMessage = "The away message must be at most 200 characters.";
+  const link = validatePaymentLink(f.paymentLink);
+  if (!link.ok) e.paymentLink = link.error;
+  if (f.paymentInstructions.length > PAYMENT_NOTE_MAX) e.paymentInstructions = `The payment instructions must be at most ${PAYMENT_NOTE_MAX} characters.`;
   if (!whole(f.responseTargetMin, 1, 1440)) e.responseTargetMin = "Enter the response target as whole minutes from 1 to 1440.";
   if (!whole(f.freeAbove, 0, 100000)) e.freeAbove = "Enter a whole number of dollars from 0 to 100000. Use 0 for no free-shipping threshold.";
   if (!whole(f.fee, 0, 1000)) e.fee = "Enter a whole number of dollars from 0 to 1000. Use 0 for free shipping.";
@@ -162,6 +170,8 @@ function SettingsForm({ initial }: { initial: SettingsDto }) {
           businessHours: hoursPayload(form.businessHours),
           timezone: form.timezone,
           awayMessage: form.awayMessage.trim(),
+          paymentLink: form.paymentLink.trim(),
+          paymentInstructions: form.paymentInstructions.trim(),
           languages: form.languages,
           responseTargetMin: Number(form.responseTargetMin),
           shipping: {
@@ -294,6 +304,24 @@ function SettingsForm({ initial }: { initial: SettingsDto }) {
           <textarea id="st-away" rows={2} value={form.awayMessage} onChange={(e) => set("awayMessage", e.target.value)} aria-describedby="st-away-error st-away-count" aria-invalid={!!errors.awayMessage} data-testid="settings-away-message-input" className={cls("awayMessage")} />
           <FieldError id="st-away-error" message={errors.awayMessage} testId="settings-away-message-error" />
           {counter(form.awayMessage, 200, "st-away-count")}
+        </div>
+      </Card>
+
+      <Card testId="settings-payment">
+        <h2 className="font-heading text-lg font-semibold text-slate-900">Payment</h2>
+        <p className="mt-0.5 text-sm text-slate-500">
+          Customers pay you directly. Paste your own payment page (for example a PayPal.me, Razorpay or Stripe payment link) and it appears on the order after the customer confirms. LinguaDesk never touches the money.
+        </p>
+        <div className="mt-4">
+          <Label htmlFor="st-pay-link" hint="Must start with https://. Leave empty if you take payment another way.">Payment link</Label>
+          <input id="st-pay-link" type="url" inputMode="url" value={form.paymentLink} onChange={(e) => set("paymentLink", e.target.value)} placeholder="https://paypal.me/yourshop" aria-describedby="st-pay-link-error" aria-invalid={!!errors.paymentLink} data-testid="settings-payment-link-input" className={cls("paymentLink")} />
+          <FieldError id="st-pay-link-error" message={errors.paymentLink} testId="settings-payment-link-error" />
+        </div>
+        <div className="mt-4">
+          <Label htmlFor="st-pay-note" hint="Shown next to the link, for example a UPI id or bank details.">How to pay</Label>
+          <textarea id="st-pay-note" rows={2} value={form.paymentInstructions} onChange={(e) => set("paymentInstructions", e.target.value)} aria-describedby="st-pay-note-error st-pay-note-count" aria-invalid={!!errors.paymentInstructions} data-testid="settings-payment-note-input" className={cls("paymentInstructions")} />
+          <FieldError id="st-pay-note-error" message={errors.paymentInstructions} testId="settings-payment-note-error" />
+          {counter(form.paymentInstructions, PAYMENT_NOTE_MAX, "st-pay-note-count")}
         </div>
       </Card>
 

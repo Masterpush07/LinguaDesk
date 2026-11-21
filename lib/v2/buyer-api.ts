@@ -3,6 +3,7 @@ import { parseOrderCard } from "@/lib/catalog";
 import { db } from "@/lib/db";
 import type { BuyerMessage, BuyerOrder, BuyerThreadView, OrderStatus, ThreadStatus } from "@/lib/v2/buyer-types";
 import { newId } from "@/lib/v2/crypto";
+import { readDelivery } from "@/lib/v2/delivery";
 import { hoursStatus } from "@/lib/v2/hours";
 import { currentBuyerId } from "@/lib/v2/session";
 import { readSelection } from "@/lib/v2/selection";
@@ -125,6 +126,13 @@ export function toBuyerOrder(r: Record<string, unknown>): BuyerOrder {
     card: r.card ? parseOrderCard(JSON.stringify(r.card)) : null,
     cancelReason: (r.cancel_reason as string | null) ?? null,
     cancelledAt: iso(r.cancelled_at),
+    delivery: readDelivery(r.delivery),
+    paidAt: iso(r.paid_at),
+    // Payment details are only given for an order the buyer confirmed and that is not cancelled or already paid.
+    payment:
+      r.status !== "proposed" && r.status !== "cancelled" && !r.paid_at && (r.payment_link || r.payment_instructions)
+        ? { link: String(r.payment_link ?? ""), instructions: String(r.payment_instructions ?? "") }
+        : null,
     returnEligible: false,
     returnRequest: null,
     review: null,

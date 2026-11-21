@@ -1,4 +1,5 @@
 import type { OrderCard } from "@/lib/catalog";
+import type { Delivery } from "@/lib/v2/delivery";
 
 // Shapes returned by the /api/buyer routes. Plain types only, so server and browser code can both import them.
 
@@ -72,6 +73,9 @@ export type BuyerOrder = {
   card: OrderCard | null;
   cancelReason: string | null;
   cancelledAt: string | null;
+  delivery: Delivery | null; // given by the buyer when confirming
+  paidAt: string | null; // set by the shop once the money has arrived
+  payment: { link: string; instructions: string } | null; // the shop's own way to pay; only sent for a confirmed, unpaid order
   returnEligible: boolean; // delivered within the last 30 days with no return request yet
   returnRequest: BuyerReturn | null;
   review: BuyerReview | null;
