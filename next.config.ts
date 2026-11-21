@@ -12,6 +12,14 @@ const nextConfig: NextConfig = {
       },
     },
   },
+  // The original single-shop pages are retired: Lotus Handloom is now a normal shop on the platform.
+  async redirects() {
+    return [
+      { source: "/chat", destination: "/chat/lotus-handloom", permanent: false },
+      { source: "/owner", destination: "/login", permanent: false },
+      { source: "/owner/:path*", destination: "/login", permanent: false },
+    ];
+  },
   async headers() {
     return [
       {
