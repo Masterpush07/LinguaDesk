@@ -9,6 +9,7 @@ const FOCUS = "focus-visible:outline-none focus-visible:ring-2 focus-visible:rin
 
 export default function ProductPurchasePanel({
   productId,
+  name,
   seller,
   colors,
   sizes = [],
@@ -16,6 +17,7 @@ export default function ProductPurchasePanel({
   priceUsd,
 }: {
   productId: string;
+  name: string;
   seller: string;
   colors: string[];
   sizes?: string[];
@@ -28,6 +30,11 @@ export default function ProductPurchasePanel({
   const out = stock === 0;
   const low = stock > 0 && stock <= 5;
   const chatHref = `/chat/${seller}?product=${productId}`;
+  // The order button carries the buyer's choices, so the chat opens with them already written (never sent automatically).
+  const orderParams = new URLSearchParams({ product: productId, intent: "order", item: name, qty: String(qty) });
+  if (color) orderParams.set("colour", color);
+  if (size) orderParams.set("size", size);
+  const orderHref = `/chat/${seller}?${orderParams.toString()}`;
 
   return (
     <div className="space-y-6" data-testid="product-purchase-panel">
@@ -147,7 +154,7 @@ export default function ProductPurchasePanel({
         </Link>
         {!out && (
           <Link
-            href={`${chatHref}&intent=order`}
+            href={orderHref}
             data-testid="product-order-via-chat"
             className={`inline-flex items-center justify-center gap-2 rounded-full border border-slate-300 bg-white px-6 py-3 text-sm font-semibold text-slate-800 transition hover:border-indigo-300 hover:text-indigo-700 motion-reduce:transition-none ${FOCUS}`}
           >

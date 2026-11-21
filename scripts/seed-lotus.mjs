@@ -22,7 +22,10 @@ const slug = shopName.toLowerCase().replace(/[^a-z0-9]+/g, "-");
 
 // Old products have no stock count, so in-stock items get a demo quantity and sold-out items get 0.
 const CATEGORY = { "cotton-saree": "Sarees", "silk-cotton-saree": "Sarees", scarf: "Textiles", "tote-bag": "Bags", "cushion-cover": "Home decor", "table-runner": "Home decor" };
+const pic = (id) => `https://images.pexels.com/photos/${id}/pexels-photo-${id}.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940`;
+const IMAGE = { "cotton-saree": pic(6167463), "silk-cotton-saree": pic(38890438), scarf: pic(11770736), "tote-bag": pic(6787035), "cushion-cover": pic(39333410), "table-runner": pic(34232560) };
 const products = old.products.map((p) => ({
+  imageUrl: IMAGE[p.id] ?? null,
   name: p.name,
   description: p.description,
   category: CATEGORY[p.id] ?? "Textiles",

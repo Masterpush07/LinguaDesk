@@ -13,7 +13,7 @@ import type { LangCode } from "@/lib/platform/types";
 import { api, ApiError } from "@/lib/v2/client";
 import type { BuyerThreadView } from "@/lib/v2/buyer-types";
 import BuyerBubble from "./BuyerBubble";
-import { chipText, type ChipKey } from "./chips";
+import { chipText, orderText, type ChipKey } from "./chips";
 import { FOCUS, OrderCardView, ProductBar, SendFailedPanel, StatusBanner, TypingIndicator } from "./ChatParts";
 
 const TYPING_MAX_MS = 25_000;
@@ -37,7 +37,13 @@ function startSession(): Promise<Session> {
 
 export default function BuyerChat({ slug }: { slug: string }) {
   const { language } = usePrefs();
-  const productParam = useSearchParams().get("product");
+  const params = useSearchParams();
+  const productParam = params.get("product");
+  const orderIntent = params.get("intent") === "order";
+  const itemParam = params.get("item");
+  const qtyParam = params.get("qty");
+  const colourParam = params.get("colour");
+  const sizeParam = params.get("size");
 
   const [phase, setPhase] = useState<Phase>("starting");
   const [error, setError] = useState<{ message: string; missing: boolean } | null>(null);
@@ -186,6 +192,18 @@ export default function BuyerChat({ slug }: { slug: string }) {
   const lastPending = pending.at(-1);
   const lastIsBuyer = lastPending ? lastPending.state !== "failed" : messages.at(-1)?.sender === "buyer";
   const typing = awaiting && status === "ai" && lastIsBuyer;
+
+  // The product page's order button passes the buyer's choices; they are written into the message box once, for the buyer to edit and send.
+  const prefilled = useRef(false);
+  useEffect(() => {
+    if (phase !== "ready" || prefilled.current || !orderIntent || !itemParam) return;
+    prefilled.current = true;
+    const clean = (v: string | null) => (v ?? "").replace(/[\u0000-\u001f]/g, " ").trim().slice(0, 60);
+    const qty = Math.min(20, Math.max(1, Math.floor(Number(qtyParam)) || 1));
+    const options = [clean(colourParam), clean(sizeParam)].filter(Boolean);
+    setDraft((current) => current || orderText(language, clean(itemParam), qty, options));
+    composerRef.current?.focus();
+  }, [phase, orderIntent, itemParam, qtyParam, colourParam, sizeParam, language]);
 
   useEffect(() => {
     const el = scrollRef.current;
