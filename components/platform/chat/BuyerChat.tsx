@@ -17,6 +17,7 @@ import type { BuyerThreadView } from "@/lib/v2/buyer-types";
 import BuyerBubble from "./BuyerBubble";
 import { chipText, orderText, type ChipKey } from "./chips";
 import { FOCUS, OrderCardView, ProductBar, SendFailedPanel, StatusBanner, TypingIndicator } from "./ChatParts";
+import EmailNotify from "./EmailNotify";
 
 const TYPING_MAX_MS = 25_000;
 const SLOW_REFRESH_MS = 15_000;
@@ -415,12 +416,13 @@ export default function BuyerChat({ slug }: { slug: string }) {
         onRate={rate}
         onNewQuestion={() => composerRef.current?.focus()}
       />
-      {status === "waiting" && (
+      {(status === "waiting" || status === "assigned") && (
         <div data-testid="chat-waiting-notify" className="border-b border-slate-200 bg-white px-4 pb-3 sm:px-6">
           <div className="mx-auto flex max-w-3xl flex-wrap items-center gap-x-3 gap-y-2">
             <p className="text-sm text-slate-600">Get notified when the shop replies</p>
             <PushToggle audience="buyer" compact />
           </div>
+          <EmailNotify />
         </div>
       )}
       {notice && (

@@ -75,7 +75,7 @@ export async function POST(req: NextRequest, ctx: Ctx) {
   await sql`INSERT INTO thread_messages (id, thread_id, sender, staff_id, text, text_en, lang, numbers_verified, order_id)
     VALUES (${messageId}, ${id}, 'staff', ${staff.id}, ${summary}, ${summary === summaryEn ? null : summaryEn}, ${thread.language}, true, ${card.id})
     ON CONFLICT DO NOTHING`;
-  await recordStaffSend(staff, thread, summaryEn);
+  await recordStaffSend(staff, thread, summaryEn, "order");
   await logEvent(id, "order_sent", "staff", { staffId: staff.id, name: staff.name, orderId: card.id, total: card.total });
   return NextResponse.json({ ok: true, orderId: card.id, total: card.total, thread: await loadHead(staff, id) }, { status: 201 });
 }

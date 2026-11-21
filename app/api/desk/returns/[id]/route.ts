@@ -2,7 +2,7 @@ import { NextResponse, after, type NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { addSystemMessage } from "@/lib/v2/buyer-api";
 import { requireStaff } from "@/lib/v2/guard";
-import { sendToBuyer } from "@/lib/v2/push";
+import { alertBuyer } from "@/lib/v2/buyer-alert";
 import { RETURN_ACTIONS, RETURN_NOTE_MAX, RETURN_TRANSITIONS, type ReturnStatus } from "@/lib/v2/returns-types";
 import { Check, fail, invalidBody, readJson } from "@/lib/v2/seller-api";
 import { returnDto } from "@/lib/v2/seller-returns";
@@ -48,7 +48,15 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
   const orderId = row.order_id as string;
   const text = `Your return request for order ${orderId} was ${to}.${savedNote ? ` ${savedNote}` : ""}`;
   if (row.thread_id) await addSystemMessage(row.thread_id as string, text).catch((err: unknown) => console.error("Return message failed:", err instanceof Error ? err.message : err));
-  const alert = () => sendToBuyer(row.buyer_id as string, { title: "Return request update", body: text, url: `/orders/${orderId}`, tag: `return-${id}` });
+  const alert = () =>
+    alertBuyer({
+      buyerId: row.buyer_id as string,
+      kind: "return",
+      ref: orderId,
+      shopName: auth.staff.sellerName,
+      path: `/orders/${orderId}`,
+      push: { title: "Return request update", body: text, url: `/orders/${orderId}`, tag: `return-${id}` },
+    });
   try {
     after(alert);
   } catch {

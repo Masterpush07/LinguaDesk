@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { sendDirectText } from "@/lib/nexconn-server";
 import { newId } from "@/lib/v2/crypto";
 import { requireStaff } from "@/lib/v2/guard";
-import { sendToBuyer } from "@/lib/v2/push";
+import { alertBuyer } from "@/lib/v2/buyer-alert";
 import { Check, fail, invalidBody, readJson } from "@/lib/v2/seller-api";
 import { checkTransition, courtesyText, orderDto } from "@/lib/v2/seller-orders";
 import { ORDER_STATUSES, type OrderStatus } from "@/lib/v2/seller-types";
@@ -48,7 +48,14 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
   if (to !== from && (to === "shipped" || to === "delivered")) {
     notified = await notifyBuyer(staff, { id: row.id, courier: row.courier, tracking: row.tracking, buyer_id: row.buyer_id, thread_id: row.thread_id }, to);
     const alert = () =>
-      sendToBuyer(row.buyer_id, { title: `Order ${row.id} ${to}`, body: courtesyText({ id: row.id, courier: row.courier, tracking: row.tracking }, to), url: `/orders/${row.id}`, tag: `order-${row.id}` });
+      alertBuyer({
+        buyerId: row.buyer_id,
+        kind: to,
+        ref: row.id,
+        shopName: staff.sellerName,
+        path: `/orders/${row.id}`,
+        push: { title: `Order ${row.id} ${to}`, body: courtesyText({ id: row.id, courier: row.courier, tracking: row.tracking }, to), url: `/orders/${row.id}`, tag: `order-${row.id}` },
+      });
     try {
       after(alert);
     } catch {
