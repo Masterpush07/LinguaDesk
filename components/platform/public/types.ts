@@ -27,6 +27,15 @@ export type CatalogProduct = {
 
 export type ListedProduct = CatalogProduct & { seller: { slug: string; name: string; country: string } };
 
+// What /api/public/search returns: the filters in plain words plus the matching products and shops.
+export type SearchResult = {
+  intent: { ai: boolean };
+  summary: string[];
+  relaxed: string[];
+  products: ListedProduct[];
+  sellers: ShopSummary[];
+};
+
 export type ShopDetail = {
   seller: {
     slug: string;

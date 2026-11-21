@@ -1,16 +1,16 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Search } from "lucide-react";
+import { Info, Search, Sparkles } from "lucide-react";
 import { EmptyState } from "@/components/platform/ui";
 import { ErrorPanel, GridSkeleton, PublicProductCard, PublicSellerCard } from "@/components/platform/public/parts";
 import { useApi } from "@/components/platform/public/useApi";
-import type { ListedProduct, ShopSummary } from "@/components/platform/public/types";
+import type { ListedProduct, SearchResult, ShopSummary } from "@/components/platform/public/types";
 
 const PILL = "rounded-full px-3 py-1.5 text-sm font-medium transition motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500";
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-");
 
-// Search plus category and country filters over the real catalogue. Filter chips are built from the data that exists.
+// Search reads a whole sentence (in any language) into filters; category and country chips narrow it further. Chips are built from the data that exists.
 export default function MarketplaceBrowser() {
   const [query, setQuery] = useState("");
   const [search, setSearch] = useState("");
@@ -23,18 +23,29 @@ export default function MarketplaceBrowser() {
   }, [query]);
 
   const filtered = search !== "" || category !== "" || country !== "";
+  const smart = search !== "";
   const productParams = new URLSearchParams({ q: search, category, country }).toString();
   const sellerParams = new URLSearchParams({ q: search, country }).toString();
 
   const allProducts = useApi<ListedProduct[]>("/api/public/products");
   const allSellers = useApi<ShopSummary[]>("/api/public/sellers");
-  const someProducts = useApi<ListedProduct[]>(filtered ? `/api/public/products?${productParams}` : null);
-  const someSellers = useApi<ShopSummary[]>(filtered ? `/api/public/sellers?${sellerParams}` : null);
+  const smartResult = useApi<SearchResult>(smart ? `/api/public/search?${productParams}` : null);
+  const someProducts = useApi<ListedProduct[]>(filtered && !smart ? `/api/public/products?${productParams}` : null);
+  const someSellers = useApi<ShopSummary[]>(filtered && !smart ? `/api/public/sellers?${sellerParams}` : null);
 
-  const productsHook = filtered ? someProducts : allProducts;
-  const sellersHook = filtered ? someSellers : allSellers;
+  const productsHook = smart
+    ? { data: smartResult.data?.products ?? null, loading: smartResult.loading, error: smartResult.error, retry: smartResult.retry }
+    : filtered
+      ? someProducts
+      : allProducts;
+  const sellersHook = smart
+    ? { data: smartResult.data?.sellers ?? null, loading: smartResult.loading, error: smartResult.error, retry: smartResult.retry }
+    : filtered
+      ? someSellers
+      : allSellers;
   const products = productsHook.data;
   const sellers = sellersHook.data;
+  const understood = smart ? smartResult.data : null;
 
   const categories = useMemo(() => Array.from(new Set((allProducts.data ?? []).map((p) => p.category).filter(Boolean))).sort(), [allProducts.data]);
   const countries = useMemo(() => Array.from(new Set((allSellers.data ?? []).map((s) => s.country).filter(Boolean))).sort(), [allSellers.data]);
@@ -42,6 +53,7 @@ export default function MarketplaceBrowser() {
   const retryAll = () => {
     allProducts.retry();
     allSellers.retry();
+    smartResult.retry();
     someProducts.retry();
     someSellers.retry();
   };
@@ -81,11 +93,33 @@ export default function MarketplaceBrowser() {
           data-testid="marketplace-search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          maxLength={80}
-          placeholder="Search products and shops"
+          maxLength={120}
+          placeholder="Try: a red scarf under $20, in any language"
           className="w-full rounded-full border border-slate-200 bg-white py-3 pl-11 pr-4 text-sm shadow-sm placeholder:text-slate-400 focus-visible:border-indigo-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/30"
         />
       </div>
+
+      {understood && (understood.summary.length > 0 || understood.relaxed.length > 0) && (
+        <div className="mx-auto mt-3 max-w-xl text-center" data-testid="search-understood">
+          {understood.summary.length > 0 && (
+            <p className="flex flex-wrap items-center justify-center gap-1.5 text-xs text-slate-500">
+              <Sparkles className="h-3.5 w-3.5 text-indigo-500" aria-hidden="true" />
+              <span>{understood.intent.ai ? "Understood as" : "Searching for"}</span>
+              {understood.summary.map((s) => (
+                <span key={s} data-testid="search-chip" className="rounded-full bg-indigo-50 px-2.5 py-0.5 font-medium text-indigo-700 ring-1 ring-indigo-100">
+                  {s}
+                </span>
+              ))}
+            </p>
+          )}
+          {understood.relaxed.map((note) => (
+            <p key={note} role="status" data-testid="search-relaxed" className="mt-2 flex items-start justify-center gap-1.5 text-xs text-amber-700">
+              <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              <span>{note.charAt(0).toUpperCase() + note.slice(1)}.</span>
+            </p>
+          ))}
+        </div>
+      )}
 
       {categories.length > 0 && (
         <div className="mt-6 flex flex-wrap items-center justify-center gap-2" role="group" aria-label="Filter by category">
