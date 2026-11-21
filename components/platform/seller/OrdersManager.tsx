@@ -115,7 +115,7 @@ export default function OrdersManager() {
       {loading && <LoadingBlock label="Loading orders" testId="orders-loading" />}
       {error && !data && <ErrorBlock message={error} onRetry={reload} testId="orders-error" />}
       {data && data.length === 0 && (
-        <EmptyState title="No orders yet" text="When a customer confirms an order card sent in a chat, it appears here ready to pack and ship." href="/agent" cta="Open the agent inbox" />
+        <EmptyState title="No orders yet" text="When a customer confirms an order card sent in a chat, it appears here ready to pack and ship." href="/agent" cta="Open the inbox" />
       )}
       {data && data.length > 0 && rows.length === 0 && (
         <p data-testid="orders-filter-empty" className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">

@@ -99,7 +99,7 @@ export default function KnowledgeManager() {
   return (
     <div className="space-y-6">
       <p data-testid="knowledge-explainer" className="rounded-2xl border border-indigo-100 bg-indigo-50/60 p-4 text-sm text-slate-700">
-        The AI answers customers only from three places: this page, your products and your shop policies in Settings. If a question is not covered, it hands the conversation to an agent instead of guessing.
+        The AI answers customers only from three places: this page, your products and your shop policies in Settings. If a question is not covered, it does not guess: it tells the customer the shop will reply and sends you a notification in the app.
       </p>
       <Notice message={notice} testId="knowledge-confirmation" />
 

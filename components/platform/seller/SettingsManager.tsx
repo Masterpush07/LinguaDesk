@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useSyncExternalStore } from "react";
+import Link from "next/link";
 import { ExternalLink, LogOut, Save } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { signOut as signOutRequest } from "@/components/platform/auth/session";
 import { LanguagePicker } from "@/components/platform/seller/LanguagePicker";
 import { BTN_GHOST, BTN_PRIMARY, Card, CopyButton, ErrorBlock, FieldError, FOCUS, INPUT, Label, LoadingBlock, Notice } from "@/components/platform/seller/ui";
 import { NextAction } from "@/components/platform/ui";
@@ -21,6 +22,7 @@ const POLICIES = [
 
 type Form = {
   name: string;
+  agentName: string;
   tagline: string;
   about: string;
   country: string;
@@ -37,6 +39,7 @@ type Form = {
 
 const toForm = (s: SettingsDto): Form => ({
   name: s.name,
+  agentName: s.agentName,
   tagline: s.tagline,
   about: s.about,
   country: s.country,
@@ -58,6 +61,7 @@ function validate(f: Form): Record<string, string> {
   const e: Record<string, string> = {};
   if (!f.name.trim()) e.name = "Enter your shop name.";
   else if (f.name.trim().length > 60) e.name = "The shop name must be at most 60 characters.";
+  if (f.agentName.length > 40) e.agentName = "The assistant name must be at most 40 characters.";
   if (f.tagline.length > 200) e.tagline = "The tagline must be at most 200 characters.";
   if (f.about.length > 600) e.about = "The description must be at most 600 characters.";
   if (f.country.length > 100) e.country = "The country must be at most 100 characters.";
@@ -75,7 +79,6 @@ function validate(f: Form): Record<string, string> {
 const originStore = { subscribe: () => () => {}, client: () => window.location.origin, server: () => "" };
 
 function SettingsForm({ initial }: { initial: SettingsDto }) {
-  const router = useRouter();
   const origin = useSyncExternalStore(originStore.subscribe, originStore.client, originStore.server);
   const [saved, setSaved] = useState(initial);
   const [form, setForm] = useState<Form>(() => toForm(initial));
@@ -104,6 +107,7 @@ function SettingsForm({ initial }: { initial: SettingsDto }) {
         json: {
           ...settingsPayload(saved),
           name: form.name.trim(),
+          agentName: form.agentName.trim(),
           tagline: form.tagline.trim(),
           about: form.about.trim(),
           country: form.country.trim(),
@@ -132,12 +136,8 @@ function SettingsForm({ initial }: { initial: SettingsDto }) {
 
   const signOut = async () => {
     setSignOutError("");
-    try {
-      await api("/api/auth/logout", { method: "POST" });
-      router.push("/login");
-    } catch (err) {
-      setSignOutError(errorMessage(err));
-    }
+    const failure = await signOutRequest();
+    if (failure) setSignOutError(failure);
   };
 
   const counter = (value: string, max: number, id: string) => (
@@ -146,6 +146,22 @@ function SettingsForm({ initial }: { initial: SettingsDto }) {
 
   return (
     <form onSubmit={submit} noValidate className="space-y-6">
+      <Card testId="settings-assistant">
+        <h2 className="font-heading text-lg font-semibold text-slate-900">Your AI assistant</h2>
+        <p className="mt-0.5 text-sm text-slate-500">
+          Every shop has its own AI assistant, already working for you. It answers customers in their language using only your products, policies, knowledge base and glossary. When it cannot answer, it tells the customer the shop will reply and sends you a notification in the app.
+        </p>
+        <div className="mt-4 max-w-md">
+          <Label htmlFor="st-agent-name" hint={`Customers see this name in the chat. Leave it empty to use "${form.name.trim() || "Your shop"} Assistant".`}>Assistant name</Label>
+          <input id="st-agent-name" value={form.agentName} maxLength={40} onChange={(e) => set("agentName", e.target.value)} aria-describedby="st-agent-name-error" aria-invalid={!!errors.agentName} data-testid="settings-agent-name-input" className={cls("agentName")} />
+          <FieldError id="st-agent-name-error" message={errors.agentName} testId="settings-agent-name-error" />
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <Link href="/seller/knowledge" data-testid="settings-assistant-knowledge" className={`${BTN_GHOST} !px-3 !py-1.5`}>Teach it with your knowledge base</Link>
+          <Link href="/seller/glossary" data-testid="settings-assistant-tone" className={`${BTN_GHOST} !px-3 !py-1.5`}>Set its tone and glossary</Link>
+        </div>
+      </Card>
+
       <Card testId="settings-profile">
         <h2 className="font-heading text-lg font-semibold text-slate-900">Shop profile</h2>
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
@@ -172,7 +188,7 @@ function SettingsForm({ initial }: { initial: SettingsDto }) {
             <FieldError id="st-country-error" message={errors.country} testId="settings-country-error" />
           </div>
           <div>
-            <Label htmlFor="st-hours" hint="When agents are available, for example Mon to Fri, 09:00 to 18:00 IST.">Support hours</Label>
+            <Label htmlFor="st-hours" hint="When you or your team can reply, for example Mon to Fri, 09:00 to 18:00 IST.">Support hours</Label>
             <input id="st-hours" value={form.hours} onChange={(e) => set("hours", e.target.value)} aria-describedby="st-hours-error" aria-invalid={!!errors.hours} data-testid="settings-hours-input" className={cls("hours")} />
             <FieldError id="st-hours-error" message={errors.hours} testId="settings-hours-error" />
           </div>
@@ -187,7 +203,7 @@ function SettingsForm({ initial }: { initial: SettingsDto }) {
 
       <Card testId="settings-response">
         <h2 className="font-heading text-lg font-semibold text-slate-900">Response target</h2>
-        <p className="mt-0.5 text-sm text-slate-500">How many minutes a customer waits for an agent before the conversation counts as overdue.</p>
+        <p className="mt-0.5 text-sm text-slate-500">How many minutes a customer waits for a reply from you or your team before the conversation counts as overdue.</p>
         <div className="mt-3 max-w-48">
           <Label htmlFor="st-target">Minutes</Label>
           <input id="st-target" inputMode="numeric" value={form.responseTargetMin} onChange={(e) => set("responseTargetMin", e.target.value)} aria-describedby="st-target-error" aria-invalid={!!errors.responseTargetMin} data-testid="settings-target-input" className={cls("responseTargetMin")} />
@@ -230,7 +246,7 @@ function SettingsForm({ initial }: { initial: SettingsDto }) {
 
       <Card testId="settings-policies">
         <h2 className="font-heading text-lg font-semibold text-slate-900">Policies</h2>
-        <p className="mt-0.5 text-sm text-slate-500">The AI quotes these exactly. Leave a policy empty and the AI hands those questions to an agent.</p>
+        <p className="mt-0.5 text-sm text-slate-500">The AI quotes these exactly. Leave a policy empty and the AI passes those questions to you.</p>
         <div className="mt-4 space-y-4">
           {POLICIES.map(([key, label]) => (
             <div key={key}>

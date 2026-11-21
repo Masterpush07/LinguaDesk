@@ -1,16 +1,18 @@
-import { generateReply, type BotReply, type HistoryItem } from "@/lib/bot-ai";
+import { generateReply, type BotReply, type HistoryItem, type Persona } from "@/lib/bot-ai";
 import type { WebhookEvent } from "@/lib/bot";
 import { db } from "@/lib/db";
 import { sendDirectText } from "@/lib/nexconn-server";
 import { onlyKnownNumbers } from "@/lib/number-check";
 import { buildKnowledge } from "@/lib/shop-data";
 import { newId } from "@/lib/v2/crypto";
+import { notifyShop } from "@/lib/v2/notifications";
 import { languageCode } from "@/lib/v2/voice";
-import { loadShop, sellerByNexconnId, type SellerRow } from "@/lib/v2/shop";
+import { assistantName, loadShop, sellerByNexconnId, type SellerRow } from "@/lib/v2/shop";
 import { dispatch, logEvent, priorityFor, STAFF_SILENCE_MINUTES } from "@/lib/v2/threads";
 
 const DIRECT_CHANNEL = 1;
-const FALLBACK_ANSWER = "Thank you for your message. A member of the team will reply shortly.";
+const FALLBACK_ANSWER = "Thank you for your message. The shop team has been notified and will reply in this conversation.";
+const TONES: Persona["tone"][] = ["formal", "neutral", "friendly"];
 
 function textOf(content: string, messageType: string): string | null {
   if (messageType !== "RC:TxtMsg") return null;
@@ -73,7 +75,12 @@ async function answerBuyer(seller: SellerRow, buyerId: string, messageId: string
 
   let reply: BotReply | null = null;
   try {
-    reply = await generateReply(text, { kb, history });
+    const persona: Persona = {
+      name: assistantName(seller.shop_name, seller.agent_name),
+      shop: seller.shop_name,
+      tone: TONES.find((t) => t === seller.tone) ?? "neutral",
+    };
+    reply = await generateReply(text, { kb, history, persona });
   } catch (err) {
     console.error("AI reply failed:", err instanceof Error ? err.message : err);
   }
@@ -103,6 +110,14 @@ async function answerBuyer(seller: SellerRow, buyerId: string, messageId: string
     await sql`UPDATE threads SET status = 'waiting', assigned_staff_id = NULL, summary = ${reply?.owner_summary ?? text}, priority = ${priority},
         handoff_at = now(), sla_due_at = now() + make_interval(mins => ${seller.response_target_min}), first_response_at = NULL WHERE id = ${threadId}`;
     await logEvent(threadId, "handoff", "ai", { reason: reply ? "ai_requested" : "ai_unavailable", priority });
+    // The owner is told in the app whether or not a teammate is online to take it.
+    await notifyShop(
+      seller.id,
+      threadId,
+      "needs_reply",
+      priority === "normal" ? "A customer needs your reply" : `A ${priority} question needs your reply`,
+      reply?.owner_summary ?? text,
+    );
     await dispatch(threadId, seller.id, languageCode(reply?.customer_language) ?? null);
   }
 

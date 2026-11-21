@@ -2,13 +2,14 @@ import { NextResponse, type NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { isLimited, recordEvent } from "@/lib/rate-limit";
 import { addSystemMessage, loadThreadView, notFound, requireBuyer } from "@/lib/v2/buyer-api";
+import { notifyShop } from "@/lib/v2/notifications";
 import { dispatch, logEvent } from "@/lib/v2/threads";
 
 const HANDOFFS_PER_HOUR = 20;
 
 type Params = { params: Promise<{ id: string }> };
 
-// The buyer asks for a human. Waiting or assigned conversations are returned as they are, so a double click is harmless.
+// The buyer asks for the shop's people. Waiting or assigned conversations are returned as they are, so a double click is harmless.
 export async function POST(_req: NextRequest, { params }: Params) {
   const auth = await requireBuyer();
   if ("error" in auth) return auth.error;
@@ -22,23 +23,24 @@ export async function POST(_req: NextRequest, { params }: Params) {
   if (t.status === "ai" || t.status === "resolved") {
     const key = `handoff:${auth.buyerId}`;
     if (await isLimited(key, HANDOFFS_PER_HOUR, 60)) {
-      return NextResponse.json({ error: "You have requested an agent many times. Please try again later." }, { status: 429 });
+      return NextResponse.json({ error: "You have contacted the shop many times. Please try again later." }, { status: 429 });
     }
     const claimed = await sql`UPDATE threads SET status = 'waiting', handoff_at = now(),
         sla_due_at = now() + make_interval(mins => ${t.response_target_min}), first_response_at = NULL, assigned_staff_id = NULL, resolved_at = NULL,
-        summary = CASE WHEN ${t.status} = 'resolved' OR summary IS NULL THEN 'The buyer asked to speak with an agent.' ELSE summary END
-      WHERE id = ${id} AND buyer_id = ${auth.buyerId} AND status = ${t.status} RETURNING id`;
+        summary = CASE WHEN ${t.status} = 'resolved' OR summary IS NULL THEN 'The buyer asked to speak with the shop.' ELSE summary END
+      WHERE id = ${id} AND buyer_id = ${auth.buyerId} AND status = ${t.status} RETURNING id, summary, last_text`;
     if (claimed.length > 0) {
       await recordEvent(key);
       if (t.status === "resolved") await logEvent(id, "reopened", "buyer");
       await logEvent(id, "handoff", "buyer", { reason: "buyer_requested" });
+      await notifyShop(t.seller_id, id, "handoff_requested", "A customer asked to speak with you", claimed[0].last_text || claimed[0].summary || "The buyer asked to speak with the shop.");
       const staffId = await dispatch(id, t.seller_id, t.language);
       const assigned = staffId ? (await loadThreadView(id, auth.buyerId))?.thread.assignedStaff : null;
       await addSystemMessage(
         id,
         assigned
           ? `${assigned.name} from the shop team has joined this conversation.`
-          : "Your request has been sent to the shop. A support agent will join as soon as one is available. You may continue to add details while you wait.",
+          : "Your message has been passed to the shop and the owner has been notified. A reply will appear in this conversation. You may continue to add details while you wait.",
       );
     }
   }
@@ -57,7 +59,7 @@ export async function DELETE(_req: NextRequest, { params }: Params) {
     WHERE id = ${id} AND buyer_id = ${auth.buyerId} AND status IN ('waiting', 'assigned') RETURNING id`;
   if (cancelled.length > 0) {
     await logEvent(id, "handoff_cancelled", "buyer");
-    await addSystemMessage(id, "Your request was cancelled. The AI assistant is answering again.");
+    await addSystemMessage(id, "Your request was cancelled. The assistant is answering again.");
   }
   const view = await loadThreadView(id, auth.buyerId);
   if (!view) return notFound("Conversation");

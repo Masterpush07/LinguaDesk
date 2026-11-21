@@ -82,7 +82,7 @@ const STEPS = [
   { title: "Customer asks", caption: "A customer writes in their own language. The agent side reads the English translation automatically." },
   { title: "AI answers", caption: "The AI answers from the shop's own product information. The price is checked by code, so $35 can never turn into $53." },
   { title: "Out of scope", caption: "The customer asks for something the shop information does not cover." },
-  { title: "AI hands over", caption: "The AI does not guess. It hands over, and the chat moves from “AI answering” to “Waiting for agent”." },
+  { title: "AI hands over", caption: "The AI does not guess. It hands over, and the chat moves from “Assistant answering” to “Needs a reply”." },
   { title: "Dispatch assigns", caption: "Dispatch picks an agent who speaks the customer's language and starts the reply-time countdown." },
   { title: "Checked reply", caption: "The agent writes in English. Before sending, the text is translated back to English to check its meaning, and every number is verified." },
   { title: "Order confirmed", caption: "The agent sends an order card. The customer confirms and the order is placed." },

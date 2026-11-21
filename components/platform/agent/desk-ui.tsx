@@ -34,9 +34,9 @@ export function PriorityPill({ priority }: { priority: ThreadPriority }) {
 }
 
 const STATUS: Record<ThreadStatus, { label: string; cls: string; hint: string }> = {
-  ai: { label: "AI responding", cls: "bg-violet-500/15 text-violet-300 ring-violet-400/30", hint: "The AI assistant is answering this buyer." },
-  waiting: { label: "Waiting for agent", cls: "bg-amber-400/10 text-amber-300 ring-amber-400/30", hint: "The AI asked for an agent. Nobody has picked this up yet." },
-  assigned: { label: "With an agent", cls: "bg-emerald-400/10 text-emerald-300 ring-emerald-400/30", hint: "An agent is handling this conversation." },
+  ai: { label: "Assistant answering", cls: "bg-violet-500/15 text-violet-300 ring-violet-400/30", hint: "The AI assistant is answering this buyer." },
+  waiting: { label: "Needs a reply", cls: "bg-amber-400/10 text-amber-300 ring-amber-400/30", hint: "The assistant could not answer, or the buyer asked for the shop. Nobody has picked this up yet." },
+  assigned: { label: "With the shop team", cls: "bg-emerald-400/10 text-emerald-300 ring-emerald-400/30", hint: "A member of the shop team is handling this conversation." },
   resolved: { label: "Resolved", cls: "bg-slate-700/40 text-slate-300 ring-slate-600", hint: "This conversation is closed." },
 };
 

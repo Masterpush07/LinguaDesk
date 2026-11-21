@@ -12,7 +12,7 @@ import { formatDateTime, PRIORITY_LABEL, type OverviewDto } from "@/lib/v2/selle
 const ACTIONS = [
   { href: "/seller/inventory", label: "Add product", icon: Plus, testId: "quick-add-product" },
   { href: "/seller/glossary", label: "Edit glossary", icon: Languages, testId: "quick-edit-glossary" },
-  { href: "/seller/team", label: "Invite agent", icon: UserPlus, testId: "quick-invite-agent" },
+  { href: "/seller/team", label: "Add a teammate", icon: UserPlus, testId: "quick-invite-agent" },
 ];
 
 const PRIORITY_STYLE = {
@@ -29,14 +29,14 @@ export default function OverviewPanel() {
   const kpis = data
     ? [
         { id: "open-chats", label: "Open conversations", value: String(data.openThreads), hint: "Conversations that are not yet resolved." },
-        { id: "awaiting-reply", label: "Awaiting an agent", value: String(data.waitingForAgent), hint: "Customers waiting for an agent to respond." },
+        { id: "awaiting-reply", label: "Needs your reply", value: String(data.waitingForAgent), hint: "Customers waiting for a reply from you or your team." },
         { id: "orders-today", label: "Orders today", value: String(data.ordersToday), hint: "Orders proposed since midnight in your time zone." },
         { id: "confirmed-orders", label: "Confirmed orders", value: String(data.confirmedOrders), hint: `${data.ordersToFulfil} to pack or ship.` },
         {
           id: "ai-resolved",
           label: "Handled by AI",
           value: data.aiResolvedPercent === null ? "No data yet" : `${data.aiResolvedPercent}%`,
-          hint: "Conversations that never needed an agent.",
+          hint: "Conversations the assistant answered on its own.",
         },
       ]
     : [];
@@ -97,7 +97,7 @@ export default function OverviewPanel() {
                 </ul>
               )}
               <Link href="/agent" data-testid="open-inbox-link" className={`mt-3 inline-block rounded-full text-sm font-medium text-indigo-600 hover:text-indigo-700 ${FOCUS}`}>
-                Open the agent inbox
+                Open the inbox
               </Link>
             </Card>
 

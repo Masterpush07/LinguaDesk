@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import type { BuyerMessage, BuyerOrder, BuyerThreadView, OrderStatus, ThreadStatus } from "@/lib/v2/buyer-types";
 import { newId } from "@/lib/v2/crypto";
 import { currentBuyerId } from "@/lib/v2/session";
+import { assistantName } from "@/lib/v2/shop";
 
 // Server-only helpers shared by the /api/buyer routes. Every query here is scoped to the signed-in buyer.
 
@@ -25,7 +26,7 @@ export const iso = (value: unknown): string | null => (value ? new Date(value as
 export async function loadThreadView(threadId: string, buyerId: string): Promise<BuyerThreadView | null> {
   const sql = db();
   const [t] = await sql`SELECT t.id, t.status, t.language, t.handoff_at, t.sla_due_at, t.rating, t.product_id,
-      st.name AS staff_name, s.id AS seller_id, s.slug, s.shop_name, s.nexconn_user_id, s.country, s.languages, s.response_target_min,
+      st.name AS staff_name, s.id AS seller_id, s.slug, s.shop_name, s.agent_name, s.nexconn_user_id, s.country, s.languages, s.response_target_min,
       EXISTS (SELECT 1 FROM staff o WHERE o.seller_id = s.id AND o.available AND o.last_seen > now() - make_interval(secs => ${ONLINE_SECONDS})) AS team_online
     FROM threads t
     JOIN sellers s ON s.id = t.seller_id
@@ -82,6 +83,7 @@ export async function loadThreadView(threadId: string, buyerId: string): Promise
     seller: {
       slug: t.slug,
       name: t.shop_name,
+      assistantName: assistantName(t.shop_name, t.agent_name),
       nexconnUserId: t.nexconn_user_id,
       country: t.country,
       languages: t.languages,

@@ -22,6 +22,7 @@ export type Tone = "formal" | "neutral" | "friendly";
 
 export type SettingsDto = {
   name: string;
+  agentName: string; // the AI assistant's name; empty means the default "<Shop> Assistant"
   tagline: string;
   about: string;
   country: string;
@@ -145,6 +146,7 @@ export const languageName = (code: string) => LANGUAGE_NAMES[code] ?? code.toUpp
 export function settingsPayload(s: SettingsDto) {
   return {
     name: s.name,
+    agentName: s.agentName,
     tagline: s.tagline,
     about: s.about,
     country: s.country,

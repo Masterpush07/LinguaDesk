@@ -13,6 +13,7 @@ type Props = {
   message: BuyerMessage;
   view: "buyer" | "english";
   delivery?: Delivery;
+  assistantName?: string; // the shop's name for its AI assistant
 };
 
 // The AI reports languages by name (for example "Spanish"), the shop UI uses codes; accept both.
@@ -29,7 +30,7 @@ const dirOf = (value: string | null) => {
 const clock = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
 // text is what the buyer reads; textEn is the English counterpart. The toggle swaps which one is large.
-export default function BuyerBubble({ message: m, view, delivery }: Props) {
+export default function BuyerBubble({ message: m, view, delivery, assistantName }: Props) {
   if (m.sender === "system") {
     return (
       <p role="status" data-testid={`message-${m.id}`} className="mx-auto max-w-[85%] rounded-full bg-slate-100 px-3.5 py-1.5 text-center text-xs text-slate-600">
@@ -52,12 +53,12 @@ export default function BuyerBubble({ message: m, view, delivery }: Props) {
     <div className={`flex flex-col ${mine ? "items-end" : "items-start"}`} data-testid={`message-${m.id}`} data-sender={m.sender}>
       {m.sender === "ai" && (
         <div className="mb-1 px-1">
-          <AiBadge />
+          <AiBadge label={assistantName} />
         </div>
       )}
       {m.sender === "staff" && (
         <p data-testid={`message-staff-${m.id}`} className="mb-1 px-1 text-[11px] font-semibold text-slate-600">
-          {m.staffName ?? "Support agent"} <span className="font-normal text-slate-500">from the shop team</span>
+          {m.staffName ?? "Shop team"} <span className="font-normal text-slate-500">from the shop team</span>
         </p>
       )}
       <div className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-[15px] leading-relaxed sm:max-w-[75%] ${bubble} ${delivery ? "opacity-80" : ""}`}>

@@ -34,6 +34,7 @@ export type BuyerThreadView = {
   seller: {
     slug: string;
     name: string;
+    assistantName: string; // the owner's name for the shop's AI assistant
     nexconnUserId: string;
     country: string;
     languages: string[];

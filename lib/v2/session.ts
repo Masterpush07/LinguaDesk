@@ -31,7 +31,8 @@ export async function setStaffCookie(staffId: string) {
   (await cookies()).set(STAFF_COOKIE, signToken({ s: staffId }, STAFF_MAX_AGE), cookieOptions(STAFF_MAX_AGE));
 }
 export async function clearStaffCookie() {
-  (await cookies()).delete(STAFF_COOKIE);
+  // Cleared with the same attributes it was set with, so no browser treats this as a different cookie and keeps the session.
+  (await cookies()).set(STAFF_COOKIE, "", { ...cookieOptions(0), expires: new Date(0) });
 }
 
 // Reads the signed cookie, then loads the live row, so removed staff or edited roles take effect immediately.

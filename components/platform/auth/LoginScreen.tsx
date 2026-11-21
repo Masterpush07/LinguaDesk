@@ -44,6 +44,10 @@ export default function LoginScreen({ initialTab = "signin" }: { initialTab?: Ta
           ? await api<AuthResult>("/api/auth/login", { method: "POST", json: { shop, name, passcode } })
           : await api<AuthResult>("/api/auth/join", { method: "POST", json: { inviteCode, name: joinName, passcode: joinPasscode, languages } });
       notifyAuthChanged();
+      // The login screen stays mounted in the background after navigation, so leave it ready for the next sign-in.
+      setPasscode("");
+      setJoinPasscode("");
+      setBusy(false);
       router.push(deskPath(result.staff.role));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not sign in. Please try again.");
@@ -85,7 +89,7 @@ export default function LoginScreen({ initialTab = "signin" }: { initialTab?: Ta
     <div className="mx-auto max-w-md px-4 py-12 sm:py-16">
       <div className="text-center">
         <h1 className="font-heading text-3xl font-semibold tracking-tight text-slate-900">Welcome back</h1>
-        <p className="mt-2 text-sm text-slate-600">Sign in to your shop desk, or join a team with an invite code.</p>
+        <p className="mt-2 text-sm text-slate-600">Sign in to your shop, or join a team with the invite link from the shop owner.</p>
       </div>
 
       <div className="mt-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -126,7 +130,7 @@ export default function LoginScreen({ initialTab = "signin" }: { initialTab?: Ta
                 testId="join-code"
                 value={inviteCode}
                 onChange={setInviteCode}
-                hint="The shop owner creates this code under Team."
+                hint="The shop owner creates an invite under Team in the seller studio and sends you the link or code. If you own the shop, use Sign in instead."
                 disabled={busy}
                 autoComplete="off"
                 required

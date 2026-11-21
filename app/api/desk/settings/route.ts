@@ -20,13 +20,14 @@ const str = (v: unknown) => (typeof v === "string" ? v : "");
 const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
 
 async function load(sellerId: string): Promise<SettingsDto | null> {
-  const [s] = await db()`SELECT slug, shop_name, tagline, about, country, languages, hours, tone, response_target_min, shipping, policies
+  const [s] = await db()`SELECT slug, shop_name, agent_name, tagline, about, country, languages, hours, tone, response_target_min, shipping, policies
     FROM sellers WHERE id = ${sellerId}`;
   if (!s) return null;
   const ship = (s.shipping ?? {}) as Record<string, unknown>;
   const pol = (s.policies ?? {}) as Record<string, unknown>;
   return {
     name: s.shop_name,
+    agentName: s.agent_name ?? "",
     tagline: s.tagline,
     about: s.about,
     country: s.country,
@@ -72,6 +73,8 @@ export async function PUT(req: NextRequest) {
 
   const check = new Check();
   const name = check.text(body.name, "Shop name", 60, true);
+  // Optional and only changed when sent, so a client that does not know about the field never clears the owner's choice.
+  const agentName = body.agentName === undefined ? null : check.text(body.agentName, "Assistant name", 40);
   const tagline = check.text(body.tagline, "Tagline", 200);
   const about = check.text(body.about, "About", 600);
   const country = check.text(body.country, "Country", 100);
@@ -93,7 +96,7 @@ export async function PUT(req: NextRequest) {
   const clash = await sql`SELECT 1 FROM sellers WHERE id <> ${auth.staff.sellerId} AND (lower(shop_name) = ${name.toLowerCase()} OR slug = ${slugify(name)})`;
   if (clash.length > 0) return fail("Another shop already uses this name. Choose a different shop name.", 409);
 
-  const rows = await sql`UPDATE sellers SET shop_name = ${name}, tagline = ${tagline}, about = ${about}, country = ${country},
+  const rows = await sql`UPDATE sellers SET shop_name = ${name}, agent_name = COALESCE(${agentName}, agent_name), tagline = ${tagline}, about = ${about}, country = ${country},
       languages = ${languages}, hours = ${hours}, tone = ${tone}, response_target_min = ${responseTargetMin},
       shipping = ${JSON.stringify(shipping)}::jsonb, policies = ${JSON.stringify(policies)}::jsonb
     WHERE id = ${auth.staff.sellerId} RETURNING id`;

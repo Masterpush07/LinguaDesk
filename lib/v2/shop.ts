@@ -18,16 +18,20 @@ export type SellerRow = {
   hours: string;
   response_target_min: number;
   tone: string;
+  agent_name: string;
 };
 
+// The assistant's display name: the owner's choice, or "<Shop> Assistant" until they pick one.
+export const assistantName = (shopName: string, agentName: string | null | undefined) => (agentName?.trim() ? agentName.trim() : `${shopName} Assistant`);
+
 export async function sellerByNexconnId(nexconnUserId: string): Promise<SellerRow | null> {
-  const [row] = await db()`SELECT id, slug, shop_name, owner_name, country, tagline, about, languages, nexconn_user_id, hours, response_target_min, tone
+  const [row] = await db()`SELECT id, slug, shop_name, owner_name, country, tagline, about, languages, nexconn_user_id, hours, response_target_min, tone, agent_name
     FROM sellers WHERE nexconn_user_id = ${nexconnUserId}`;
   return (row as SellerRow | undefined) ?? null;
 }
 
 export async function sellerBySlug(slug: string): Promise<SellerRow | null> {
-  const [row] = await db()`SELECT id, slug, shop_name, owner_name, country, tagline, about, languages, nexconn_user_id, hours, response_target_min, tone
+  const [row] = await db()`SELECT id, slug, shop_name, owner_name, country, tagline, about, languages, nexconn_user_id, hours, response_target_min, tone, agent_name
     FROM sellers WHERE slug = ${slug}`;
   return (row as SellerRow | undefined) ?? null;
 }

@@ -14,9 +14,29 @@ const COUNTRIES = ["India", "Japan", "Indonesia", "Rwanda", "Mexico", "Brazil", 
 const MAX_FAQS = 3;
 
 type Created = { slug: string; name: string };
-type ParsedLine = { raw: string; name: string; price: number | null };
+type ParsedLine = { raw: string; name: string; price: number | null; problem: string | null };
 type Faq = { q: string; a: string };
 type CurrentSettings = { shipping: Record<string, unknown>; policies: Record<string, unknown> } & Record<string, unknown>;
+
+const EXAMPLE = "Trousers - 90";
+
+// The price is the last number on the line. The name may be separated by a dash, colon, comma or just a space,
+// so "Trousers - 90", "Trousers-90", "Trousers: $90" and "Trousers 90" are all read the same way.
+const PRODUCT_LINE = /^(.+?)\s*(?:[-–—:=,|@]\s*|\s)\$?\s*(\d+(?:[.,]\d+)*)\s*(?:\$|usd|dollars?)?$/i;
+
+const parseProductLine = (raw: string): ParsedLine => {
+  const match = PRODUCT_LINE.exec(raw);
+  if (!match) {
+    const startsWithNumber = /^\$?\s*\d/.test(raw);
+    return { raw, name: raw, price: null, problem: startsWithNumber ? `Write the name first, then the price. For example: ${EXAMPLE}` : `Add a price after the name. For example: ${EXAMPLE}` };
+  }
+  const name = match[1].trim();
+  const digits = match[2];
+  const price = /^\d{1,3}(,\d{3})+$/.test(digits) ? Number(digits.replace(/,/g, "")) : Number(digits.replace(",", "."));
+  if (!Number.isInteger(price)) return { raw, name, price: null, problem: "Use a whole number of US dollars, without cents" };
+  if (price < 1) return { raw, name, price: null, problem: "The price must be at least $1" };
+  return { raw, name, price, problem: null };
+};
 
 const parseProducts = (text: string): ParsedLine[] => {
   const seen = new Set<string>();
@@ -24,13 +44,7 @@ const parseProducts = (text: string): ParsedLine[] => {
     .split("\n")
     .map((l) => l.trim())
     .filter((raw) => raw && !seen.has(raw) && seen.add(raw))
-    .map((raw) => {
-      const i = raw.lastIndexOf(" - ");
-      if (i < 1) return { raw, name: raw, price: null };
-      const name = raw.slice(0, i).trim();
-      const price = Number(raw.slice(i + 3).replace(/^\$/, "").trim());
-      return { raw, name, price: name && Number.isInteger(price) && price >= 1 ? price : null };
-    });
+    .map(parseProductLine);
 };
 
 const toWhole = (v: string): number | null => {
@@ -357,9 +371,9 @@ export default function SellWizard() {
               <h2 ref={headingRef} tabIndex={-1} className="font-heading text-2xl font-semibold text-slate-900 focus:outline-none">
                 Add products
               </h2>
-              <p className="mt-1 text-sm text-slate-600">Write one product per line as name - price in US dollars. You can add images, colours and more later in Inventory.</p>
+              <p className="mt-1 text-sm text-slate-600">Write one product per line, with its price in whole US dollars after the name. You can add images, colours and more later in Inventory.</p>
             </div>
-            <Field label="Products" htmlFor="wizard-products">
+            <Field label="Products" htmlFor="wizard-products" hint={`One product per line, for example: ${EXAMPLE}`}>
               <textarea
                 id="wizard-products"
                 data-testid="wizard-products"
@@ -367,7 +381,7 @@ export default function SellWizard() {
                 onChange={(e) => setProductText(e.target.value)}
                 rows={5}
                 disabled={savingProducts}
-                placeholder={"Product name - 25\nAnother product - 40"}
+                placeholder={"Trousers - 90\nCotton shirt - 45"}
                 className={`${INPUT} font-mono`}
               />
             </Field>
@@ -391,7 +405,7 @@ export default function SellWizard() {
                             <Check className="h-3 w-3" aria-hidden="true" /> Saved
                           </span>
                         ) : p.price === null ? (
-                          <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">Needs a whole-number price</span>
+                          <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700">{p.problem}</span>
                         ) : err ? (
                           <span role="alert" className="rounded-full bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700">
                             {err}
@@ -409,6 +423,16 @@ export default function SellWizard() {
             {Object.keys(lineErrors).length > 0 && (
               <p role="alert" data-testid="wizard-products-error" className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
                 <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /> Some products were not saved. Try again, or continue and add them later from Inventory.
+              </p>
+            )}
+
+            {pending.length === 0 && !savingProducts && (
+              <p data-testid="wizard-products-hint" className="text-sm text-slate-600" aria-live="polite">
+                {parsed.length === 0
+                  ? "Add at least one product to continue, or skip this step and add products later from Inventory."
+                  : parsed.every((p) => savedLines.includes(p.raw))
+                    ? "These products are saved. Continue to the next step."
+                    : "Fix the highlighted lines to continue, or skip this step and add products later from Inventory."}
               </p>
             )}
 

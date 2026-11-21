@@ -27,10 +27,24 @@ const SCHEMA = {
   ],
 };
 
+export type Persona = { name: string; shop: string; tone: "formal" | "neutral" | "friendly" };
+
+const TONE_RULE: Record<Persona["tone"], string> = {
+  formal: "Write in a formal, courteous register.",
+  neutral: "Write in a clear, professional and neutral register.",
+  friendly: "Write in a warm, approachable register while staying concise and professional. Do not use exclamation marks or emoji.",
+};
+
+// The owner's own text, so keep it to one short line before it reaches the prompt.
+const oneLine = (value: string, max: number) => value.replace(/\s+/g, " ").trim().slice(0, max);
+
 // The shop info is passed in per request, because the owner can edit it at any time.
-const systemPrompt = (
-  kb: string,
-) => `You are the AI customer support assistant for the shop described below. Only when the customer asks who or what you are, say you are the shop's AI assistant; otherwise do not introduce yourself.
+// With a persona the assistant has the owner's chosen name and tone, and hands over to "the shop team" instead of an anonymous team member.
+const systemPrompt = (kb: string, persona?: Persona) => {
+  const intro = persona
+    ? `You are ${oneLine(persona.name, 40)}, the AI assistant of ${oneLine(persona.shop, 60)}, the shop described below. Only when the customer asks who or what you are, say you are ${oneLine(persona.name, 40)}, the shop's AI assistant; otherwise do not introduce yourself. ${TONE_RULE[persona.tone]}`
+    : `You are the AI customer support assistant for the shop described below. Only when the customer asks who or what you are, say you are the shop's AI assistant; otherwise do not introduce yourself.`;
+  const prompt = `${intro}
 The user message is JSON with "history" (earlier messages, for context only) and "message" (the customer's latest message). Answer only "message"; use "history" to understand follow-ups such as "and in blue?".
 Rules:
 - Detect the language of "message" and write "answer" in that same language. Put its English name in "customer_language".
@@ -49,6 +63,8 @@ Rules:
 
 Shop info:
 ${kb}`;
+  return persona ? prompt.replaceAll("a team member", "the shop team") : prompt;
+};
 
 export type HistoryItem = {
   from: "customer" | "shop_ai" | "shop_owner";
@@ -57,7 +73,7 @@ export type HistoryItem = {
 
 export function generateReply(
   customerText: string,
-  options: { kb: string; history?: HistoryItem[]; models?: string[] },
+  options: { kb: string; history?: HistoryItem[]; models?: string[]; persona?: Persona },
 ): Promise<BotReply> {
   const input = JSON.stringify({
     history: (options.history ?? [])
@@ -66,7 +82,7 @@ export function generateReply(
     message: customerText.slice(0, 1000),
   });
   return generateJson<BotReply>(
-    systemPrompt(options.kb),
+    systemPrompt(options.kb, options.persona),
     input,
     SCHEMA,
     options.models,

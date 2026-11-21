@@ -7,7 +7,7 @@ import { EmptyState, StatusBadge, statusHint } from "@/components/platform/ui";
 import { api, ApiError } from "@/lib/v2/client";
 import type { BuyerThreadSummary } from "@/lib/v2/buyer-types";
 
-const SENDER_LABEL: Record<string, string> = { buyer: "You", ai: "AI assistant", staff: "Support agent", system: "Shop" };
+const SENDER_LABEL: Record<string, string> = { buyer: "You", ai: "Assistant", staff: "Shop team", system: "Shop" };
 
 function when(iso: string): string {
   const d = new Date(iso);

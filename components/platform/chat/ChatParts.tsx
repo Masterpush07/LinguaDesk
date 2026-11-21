@@ -34,7 +34,8 @@ type BannerProps = {
 // Says what is happening, what happens next, and offers one clear action.
 export function StatusBanner({ view, busy, onHandoff, onCancel, onNewQuestion, onRate }: BannerProps) {
   const { status, assignedStaff, slaDueAt, rating } = view.thread;
-  const staffName = assignedStaff?.name ?? "A support agent";
+  const staffName = assignedStaff?.name ?? "A member of the shop team";
+  const assistant = view.seller.assistantName;
   const btn = `shrink-0 rounded-full px-4 py-2 text-sm font-medium transition motion-reduce:transition-none disabled:cursor-not-allowed disabled:opacity-60 ${FOCUS}`;
   const secondary = `${btn} border border-slate-300 bg-white text-slate-700 hover:bg-slate-50`;
 
@@ -53,15 +54,15 @@ export function StatusBanner({ view, busy, onHandoff, onCancel, onNewQuestion, o
         )}
         <div className="min-w-0 flex-1 basis-64" role="status" data-testid="chat-status-text">
           <p className="flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-900">
-            {status === "ai" && "The AI assistant is answering"}
-            {status === "waiting" && "Waiting for a support agent"}
+            {status === "ai" && `${assistant} is answering`}
+            {status === "waiting" && "Your question has been passed to the shop"}
             {status === "assigned" && `${staffName} has joined`}
             {status === "resolved" && "This conversation is resolved"}
             <StatusBadge status={status} />
           </p>
           <p className={`mt-0.5 text-sm text-slate-600 ${status === "ai" || status === "assigned" ? "max-sm:hidden" : ""}`}>
-            {status === "ai" && "Answers are based on this shop's product and policy information. To speak with an agent, select Request an agent."}
-            {status === "waiting" && "Your request has been sent to the shop and we are assigning an available support agent. You may continue to add details while you wait."}
+            {status === "ai" && `${assistant} answers from this shop's products, policies and FAQs. If it cannot help, your question goes to the shop owner. You can also select Ask the shop owner at any time.`}
+            {status === "waiting" && `The shop owner has been notified and will reply in this conversation. ${assistant} can keep helping in the meantime, and you may add more details while you wait.`}
             {status === "assigned" && `${staffName} can see this whole conversation. Write your question below and the reply will appear here.`}
             {status === "resolved" && "Thank you for contacting the shop. How was your experience?"}
           </p>
@@ -99,7 +100,7 @@ export function StatusBanner({ view, busy, onHandoff, onCancel, onNewQuestion, o
         </div>
         {status === "ai" && (
           <button type="button" onClick={onHandoff} disabled={busy} data-testid="handoff-btn" className={`${btn} bg-indigo-600 text-white hover:bg-indigo-700`}>
-            Request an agent
+            Ask the shop owner
           </button>
         )}
         {status === "waiting" && (
@@ -109,7 +110,7 @@ export function StatusBanner({ view, busy, onHandoff, onCancel, onNewQuestion, o
         )}
         {status === "assigned" && (
           <button type="button" onClick={onCancel} disabled={busy} data-testid="return-to-ai-btn" className={secondary}>
-            Back to AI assistant
+            Back to {assistant}
           </button>
         )}
         {status === "resolved" && (
