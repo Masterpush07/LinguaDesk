@@ -20,6 +20,7 @@ import DeliveryDialog from "@/components/platform/orders/DeliveryDialog";
 import BuyerBubble from "./BuyerBubble";
 import { chipText, orderText, type ChipKey } from "./chips";
 import { FOCUS, OrderCardView, ProductBar, SendFailedPanel, StatusBanner, TypingIndicator } from "./ChatParts";
+import { stopListening } from "./listen";
 import EmailNotify from "./EmailNotify";
 
 const TYPING_MAX_MS = 25_000;
@@ -83,6 +84,7 @@ export default function BuyerChat({ slug }: { slug: string }) {
     return () => {
       list.forEach((id) => window.clearTimeout(id));
       if (awaitTimer.current !== null) window.clearTimeout(awaitTimer.current);
+      stopListening(); // read-aloud must not keep talking after the buyer leaves the chat
     };
   }, []);
 
@@ -463,7 +465,7 @@ export default function BuyerChat({ slug }: { slug: string }) {
 
           {messages.map((m) => (
             <div key={m.id} className="flex flex-col gap-2">
-              <BuyerBubble message={m} view={reading} assistantName={seller.assistantName} onReport={reportTranslation} />
+              <BuyerBubble message={m} view={reading} assistantName={seller.assistantName} threadPath={threadPath} onReport={reportTranslation} />
               {m.order && m.orderId && (
                 <div className="flex justify-start">
                   <OrderCardView

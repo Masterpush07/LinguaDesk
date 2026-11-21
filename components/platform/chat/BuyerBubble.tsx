@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { Flag, Languages, ShieldCheck, Volume2 } from "lucide-react";
-import { speak } from "@/components/platform/DualBubble";
+import { Flag, Languages, Loader2, ShieldCheck, Square, Volume2 } from "lucide-react";
 import { AiBadge } from "@/components/platform/ui";
+import { listen, stopListening, type ListenState } from "./listen";
 import { LANGS } from "@/lib/platform/data";
 import type { LangCode } from "@/lib/platform/types";
 import type { BuyerMessage } from "@/lib/v2/buyer-types";
@@ -16,6 +16,7 @@ type Props = {
   view: "buyer" | "english";
   delivery?: Delivery;
   assistantName?: string; // the shop's name for its AI assistant
+  threadPath?: string; // /api/buyer/threads/<id>, needed to read a message aloud
   onReport?: (messageId: string, reason: ReportReason, comment: string) => Promise<void>; // lets the buyer flag a wrong translation
 };
 
@@ -33,7 +34,9 @@ const dirOf = (value: string | null) => {
 const clock = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
 // text is what the buyer reads; textEn is the English counterpart. The toggle swaps which one is large.
-export default function BuyerBubble({ message: m, view, delivery, assistantName, onReport }: Props) {
+export default function BuyerBubble({ message: m, view, delivery, assistantName, threadPath, onReport }: Props) {
+  const [listening, setListening] = useState<ListenState>("idle");
+  const [listenError, setListenError] = useState("");
   const [reporting, setReporting] = useState(false);
   const [reason, setReason] = useState<ReportReason>("wrong_meaning");
   const [comment, setComment] = useState("");
@@ -72,7 +75,25 @@ export default function BuyerBubble({ message: m, view, delivery, assistantName,
 
   const bubble = mine ? "bg-indigo-600 text-white" : m.sender === "ai" ? "bg-violet-50 text-slate-900 ring-1 ring-violet-200" : "bg-indigo-50 text-indigo-950";
   const sub = mine ? "text-indigo-100" : "text-slate-500";
-  const playable = !mine && knownLang(main.lang) !== null;
+  const playable = !mine && !!threadPath && !delivery;
+  // Untranslated shop messages are in English; a translated one in an unnamed language is read by the server voice, which detects the language itself.
+  const speakLang = english ? "en" : (knownLang(main.lang) ?? (hasEnglish ? null : "en"));
+
+  function toggleListen() {
+    if (listening === "loading" || listening === "playing") return stopListening();
+    setListenError("");
+    void listen({
+      threadPath: threadPath as string,
+      messageId: m.id,
+      variant: english ? "english" : "shown",
+      text: main.text,
+      lang: speakLang,
+      onState: (state, message) => {
+        setListening(state);
+        setListenError(state === "error" ? (message ?? "Read-aloud is not available right now.") : "");
+      },
+    });
+  }
 
   return (
     <div className={`flex flex-col ${mine ? "items-end" : "items-start"}`} data-testid={`message-${m.id}`} data-sender={m.sender}>
@@ -117,14 +138,20 @@ export default function BuyerBubble({ message: m, view, delivery, assistantName,
           {playable && (
             <button
               type="button"
-              onClick={() => speak(main.text, knownLang(main.lang) as LangCode)}
-              aria-label="Listen to this message"
+              onClick={toggleListen}
+              aria-label={listening === "playing" || listening === "loading" ? "Stop reading this message" : "Listen to this message"}
               data-testid={`play-${m.id}`}
+              data-state={listening}
               className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
             >
-              <Volume2 className="h-3 w-3" aria-hidden="true" />
-              Listen
+              {listening === "loading" ? <Loader2 className="h-3 w-3 animate-spin motion-reduce:animate-none" aria-hidden="true" /> : listening === "playing" ? <Square className="h-3 w-3" aria-hidden="true" /> : <Volume2 className="h-3 w-3" aria-hidden="true" />}
+              {listening === "loading" ? "Loading audio" : listening === "playing" ? "Stop" : "Listen"}
             </button>
+          )}
+          {listenError && (
+            <span role="alert" data-testid={`listen-error-${m.id}`} className="text-red-600">
+              {listenError}
+            </span>
           )}
           {onReport && hasEnglish && !delivery &&
             (m.reported || sent ? (

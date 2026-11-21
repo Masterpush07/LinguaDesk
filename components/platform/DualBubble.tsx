@@ -90,7 +90,7 @@ export default function DualBubble({ msg, mine, primary, showOther = true, dark 
   );
 }
 
-const BCP47: Record<string, string> = { en: "en-US", es: "es-ES", ja: "ja-JP", hi: "hi-IN", ar: "ar-SA", fr: "fr-FR", ta: "ta-IN", pt: "pt-BR", ko: "ko-KR", zh: "zh-CN" };
+export const BCP47: Record<string, string> = { en: "en-US", es: "es-ES", ja: "ja-JP", hi: "hi-IN", ar: "ar-SA", fr: "fr-FR", ta: "ta-IN", pt: "pt-BR", ko: "ko-KR", zh: "zh-CN" };
 
 // Browser text-to-speech. Voices vary by device, so this is a best-effort extra and silently does nothing if unsupported.
 export function speak(text: string, lang: string) {
