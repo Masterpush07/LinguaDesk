@@ -71,6 +71,8 @@ function describe(e: DeskEvent): string {
       return `${who} sent an order card${typeof p.total === "number" ? ` for ${formatUsd(p.total)}` : ""}`;
     case "note_added":
       return `${who} added an internal note`;
+    case "buyer_alerted":
+      return `The buyer was notified (${Array.isArray(p.channels) ? p.channels.join(" and ") : "alert"})`;
     default:
       return e.type.replace(/_/g, " ");
   }

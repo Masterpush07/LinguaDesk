@@ -25,11 +25,14 @@ export const notFound = (what: string) => NextResponse.json({ error: `${what} no
 
 export const iso = (value: unknown): string | null => (value ? new Date(value as string | Date).toISOString() : null);
 
-export async function loadThreadView(threadId: string, buyerId: string): Promise<BuyerThreadView | null> {
+export async function loadThreadView(threadId: string, buyerId: string, options: { touch?: boolean } = {}): Promise<BuyerThreadView | null> {
   const sql = db();
   // The chat page reloads this view every few seconds while it is open, so this marks the buyer as present (at most every 20 seconds).
-  // Alerts are only sent to buyers who have been away longer than a couple of minutes.
-  await sql`UPDATE buyers SET last_seen = now() WHERE id = ${buyerId} AND (last_seen IS NULL OR last_seen < now() - interval '20 seconds')`.catch(() => undefined);
+  // A hidden tab reloads it too when a message arrives, but must not count as present, so it asks for touch: false.
+  // Alerts are only sent to buyers who are not present.
+  if (options.touch !== false) {
+    await sql`UPDATE buyers SET last_seen = now() WHERE id = ${buyerId} AND (last_seen IS NULL OR last_seen < now() - interval '20 seconds')`.catch(() => undefined);
+  }
   const [t] = await sql`SELECT t.id, t.status, t.language, t.handoff_at, t.sla_due_at, t.rating, t.product_id, t.selection,
       st.name AS staff_name, s.id AS seller_id, s.slug, s.shop_name, s.agent_name, s.nexconn_user_id, s.country, s.languages,       s.response_target_min, s.business_hours, s.timezone, s.away_message, (SELECT 1 FROM staff o WHERE o.seller_id = s.id AND o.available AND o.last_seen > now() - make_interval(secs => ${ONLINE_SECONDS})) AS team_online
     FROM threads t

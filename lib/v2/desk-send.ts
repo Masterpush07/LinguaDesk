@@ -17,6 +17,7 @@ function alertBuyer(staff: Staff, thread: ThreadHead, kind: AlertKind) {
         buyerId: thread.buyer.id,
         kind,
         ref: thread.id,
+        threadId: thread.id,
         shopName: staff.sellerName,
         path: `/chat/${staff.sellerSlug}`,
         language: thread.language,

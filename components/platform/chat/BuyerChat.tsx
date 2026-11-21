@@ -126,7 +126,9 @@ export default function BuyerChat({ slug }: { slug: string }) {
     if (!id) return;
     const seq = ++requestSeq.current;
     try {
-      const next = await api<BuyerThreadView>(`/api/buyer/threads/${id}`);
+      // A hidden tab still reloads when a message arrives, but must not count as the buyer being present.
+      const hidden = document.visibilityState === "hidden" ? "?hidden=1" : "";
+      const next = await api<BuyerThreadView>(`/api/buyer/threads/${id}${hidden}`);
       if (seq < appliedSeq.current) return;
       appliedSeq.current = seq;
       applyView(next);
@@ -177,10 +179,18 @@ export default function BuyerChat({ slug }: { slug: string }) {
     const onFocus = () => void refresh();
     const slow = window.setInterval(() => document.visibilityState === "visible" && void refresh(), SLOW_REFRESH_MS);
     window.addEventListener("focus", onFocus);
+    // Leaving the tab or closing the page says so at once (sendBeacon survives the page closing), so the shop's reply
+    // alerts the buyer right away instead of after a wait; coming back says so too.
+    const away = () => navigator.sendBeacon?.("/api/buyer/presence", new Blob([JSON.stringify({ state: "away" })], { type: "application/json" }));
+    const onVisibility = () => (document.visibilityState === "hidden" ? away() : void refresh());
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("pagehide", away);
     return () => {
       offMessage();
       offConnection();
       window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("pagehide", away);
       window.clearInterval(slow);
     };
   }, [phase, refresh, refreshSoon]);

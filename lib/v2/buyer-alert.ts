@@ -2,6 +2,7 @@ import nodemailer, { type Transporter } from "nodemailer";
 import { db } from "@/lib/db";
 import { isLimited, recordEvent } from "@/lib/rate-limit";
 import { sendToBuyer, type PushPayload } from "@/lib/v2/push";
+import { logEvent } from "@/lib/v2/threads";
 
 // Server-only. The rules for telling a buyer who has left the chat that something happened, applied in front of the browser
 // popup (lib/v2/push.ts) and the email channel. The email never contains the message itself, only that something is waiting.
@@ -10,8 +11,8 @@ import { sendToBuyer, type PushPayload } from "@/lib/v2/push";
 export type AlertKind = "reply" | "order" | "shipped" | "delivered" | "return";
 
 const SITE = process.env.SITE_URL ?? "https://lingua-desk-one.vercel.app";
-const AWAY_MINUTES = 2; // the chat page refreshes every few seconds while open, so older than this means the buyer left
-const PER_KIND_MINUTES = 10; // at most one alert per buyer, kind and conversation or order in this window
+const AWAY_MINUTES = 2; // a buyer whose chat is visible refreshes every few seconds; a hidden or closed one says so at once
+const PER_KIND_MINUTES = 1; // at most one alert per buyer, kind and conversation or order in this window
 
 type Copy = Record<AlertKind, string> & { open: string; stop: string; confirmSubject: string; confirmLine: string };
 
@@ -65,6 +66,7 @@ type Alert = {
   buyerId: string;
   kind: AlertKind;
   ref: string; // the conversation or order this is about, so each one is limited separately
+  threadId?: string | null; // when known, a line in the conversation's History shows the buyer was notified
   shopName: string;
   path: string; // where the buyer should land, e.g. /chat/lotus-handloom
   push: PushPayload; // exactly what the browser popup should say
@@ -82,10 +84,15 @@ export async function alertBuyer(a: Alert): Promise<void> {
     if (await isLimited(key, 1, PER_KIND_MINUTES)) return;
     await recordEvent(key);
 
+    // Channels are read before sending, because a browser that no longer accepts pushes is removed during the send.
+    const [subscribed] = await sql`SELECT 1 AS yes FROM push_subscriptions WHERE audience = 'buyer' AND buyer_id = ${a.buyerId} LIMIT 1`;
+    const [mail] = emailConfigured() ? await sql`SELECT email, token FROM buyer_emails WHERE buyer_id = ${a.buyerId} AND verified_at IS NOT NULL` : [];
+
     await sendToBuyer(a.buyerId, a.push);
 
-    if (!emailConfigured()) return;
-    const [mail] = await sql`SELECT email, token FROM buyer_emails WHERE buyer_id = ${a.buyerId} AND verified_at IS NOT NULL`;
+    const channels = [subscribed ? "popup" : null, mail ? "email" : null].filter(Boolean);
+    if (a.threadId && channels.length > 0) await logEvent(a.threadId, "buyer_alerted", "system", { kind: a.kind, channels }).catch(() => undefined);
+
     if (!mail) return;
     const copy = copyFor(a.language ?? buyer.language);
     const title = copy[a.kind].replace("{shop}", () => a.shopName);
