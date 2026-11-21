@@ -69,7 +69,7 @@ export default function ProductView({ sellerSlug, productId }: { sellerSlug: str
           </div>
 
           <section aria-label="Choose options" className="rounded-2xl border border-slate-200 bg-white p-5">
-            <ProductPurchasePanel key={data.id} productId={data.id} seller={seller.slug} colors={data.colors} sizes={data.sizes} stock={data.stock} priceUsd={data.priceUsd} />
+            <ProductPurchasePanel key={data.id} productId={data.id} name={data.name} seller={seller.slug} colors={data.colors} sizes={data.sizes} stock={data.stock} priceUsd={data.priceUsd} />
           </section>
 
           <section aria-label="Sold by" data-testid="product-seller-card" className="rounded-2xl border border-slate-200 bg-white p-5">

@@ -43,6 +43,26 @@ export const CHIPS: Record<ChipKey, Local> = {
   },
 };
 
+// The sentence written into the message box when the buyer taps "Order via conversation" on a product page.
+const ORDER: Local = {
+  en: "I would like to order {qty} × {item}.",
+  es: "Quisiera pedir {qty} × {item}.",
+  ja: "{item}を{qty}点注文したいです。",
+  hi: "मुझे {qty} × {item} ऑर्डर करना है।",
+  ar: "أود طلب {qty} × {item}.",
+  fr: "Je voudrais commander {qty} × {item}.",
+  ta: "நான் {qty} × {item} ஆர்டர் செய்ய விரும்புகிறேன்.",
+  pt: "Gostaria de encomendar {qty} × {item}.",
+  ko: "{item} {qty}개를 주문하고 싶습니다.",
+  zh: "我想订购 {qty} 件 {item}。",
+};
+
+// Replacement functions keep a product name containing "$" from being read as a special pattern.
+export function orderText(language: LangCode, item: string, qty: number, options: string[]): string {
+  const detail = options.length ? `${item} (${options.join(", ")})` : item;
+  return ORDER[language].replace("{qty}", () => String(qty)).replace("{item}", () => detail);
+}
+
 // With a product in context the name is appended, because the AI only sees the message text.
 export function chipText(key: ChipKey, language: LangCode, productName: string | null): string {
   if (key === "price" && productName) return language === "en" ? `How much is ${productName}?` : `${CHIPS.price[language]} (${productName})`;
