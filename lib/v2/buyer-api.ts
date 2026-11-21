@@ -49,7 +49,8 @@ export async function loadThreadView(threadId: string, buyerId: string, options:
       : Promise.resolve([]),
     sql`SELECT * FROM (
         SELECT m.id, m.sender, m.text, m.text_en, m.lang, m.voice_seconds, m.confidence, m.numbers_verified, m.created_at,
-          sf.name AS staff_name, m.order_id, o.card, o.status AS order_status
+          sf.name AS staff_name, m.order_id, o.card, o.status AS order_status,
+          EXISTS (SELECT 1 FROM translation_reports r WHERE r.message_id = m.id AND r.buyer_id = ${buyerId}) AS reported
         FROM thread_messages m
         LEFT JOIN staff sf ON sf.id = m.staff_id
         LEFT JOIN orders_v2 o ON o.id = m.order_id AND o.buyer_id = ${buyerId} AND m.sender <> 'system'
@@ -76,6 +77,7 @@ export async function loadThreadView(threadId: string, buyerId: string, options:
       order: m.card ? parseOrderCard(JSON.stringify(m.card)) : null,
       orderId: m.card ? m.order_id : null,
       orderStatus: (m.order_status as OrderStatus | null) ?? null,
+      reported: !!m.reported,
     }),
   );
 

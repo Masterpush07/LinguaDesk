@@ -1,6 +1,6 @@
 // Shapes returned by /api/desk/notifications. Plain types only, so server and browser code can both import them.
 
-export type NotificationKind = "needs_reply" | "handoff_requested" | "order_confirmed" | "order_cancelled" | "return_requested" | "review_received";
+export type NotificationKind = "needs_reply" | "handoff_requested" | "order_confirmed" | "order_cancelled" | "return_requested" | "review_received" | "translation_reported";
 
 export type NotificationDto = {
   id: string;

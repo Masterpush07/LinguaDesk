@@ -15,6 +15,7 @@ import type { LangCode } from "@/lib/platform/types";
 import { api, ApiError } from "@/lib/v2/client";
 import type { BuyerThreadView } from "@/lib/v2/buyer-types";
 import type { Delivery } from "@/lib/v2/delivery";
+import type { ReportReason } from "@/lib/v2/translation-report";
 import DeliveryDialog from "@/components/platform/orders/DeliveryDialog";
 import BuyerBubble from "./BuyerBubble";
 import { chipText, orderText, type ChipKey } from "./chips";
@@ -312,6 +313,12 @@ export default function BuyerChat({ slug }: { slug: string }) {
     }
   }
 
+  // Errors are thrown so the report form can show them; the view is refreshed so the message shows as reported.
+  async function reportTranslation(messageId: string, reason: ReportReason, comment: string) {
+    await api<{ ok: boolean }>(`${threadPath}/report`, { method: "POST", json: { messageId, reason, comment } });
+    await refresh();
+  }
+
   function copyText(text: string) {
     void navigator.clipboard?.writeText(text).catch(() => undefined);
     setNotice("The text was copied.");
@@ -456,7 +463,7 @@ export default function BuyerChat({ slug }: { slug: string }) {
 
           {messages.map((m) => (
             <div key={m.id} className="flex flex-col gap-2">
-              <BuyerBubble message={m} view={reading} assistantName={seller.assistantName} />
+              <BuyerBubble message={m} view={reading} assistantName={seller.assistantName} onReport={reportTranslation} />
               {m.order && m.orderId && (
                 <div className="flex justify-start">
                   <OrderCardView

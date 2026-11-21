@@ -20,6 +20,7 @@ export type BuyerMessage = {
   order: OrderCard | null;
   orderId: string | null;
   orderStatus: OrderStatus | null;
+  reported?: boolean; // the buyer already reported this message's translation
 };
 
 export type BuyerThreadView = {

@@ -1,11 +1,13 @@
 "use client";
 
-import { Languages, ShieldCheck, Volume2 } from "lucide-react";
+import { useState } from "react";
+import { Flag, Languages, ShieldCheck, Volume2 } from "lucide-react";
 import { speak } from "@/components/platform/DualBubble";
 import { AiBadge } from "@/components/platform/ui";
 import { LANGS } from "@/lib/platform/data";
 import type { LangCode } from "@/lib/platform/types";
 import type { BuyerMessage } from "@/lib/v2/buyer-types";
+import { REPORT_COMMENT_MAX, REPORT_REASON_LABEL, REPORT_REASONS, type ReportReason } from "@/lib/v2/translation-report";
 
 export type Delivery = "sending" | "failed";
 
@@ -14,6 +16,7 @@ type Props = {
   view: "buyer" | "english";
   delivery?: Delivery;
   assistantName?: string; // the shop's name for its AI assistant
+  onReport?: (messageId: string, reason: ReportReason, comment: string) => Promise<void>; // lets the buyer flag a wrong translation
 };
 
 // The AI reports languages by name (for example "Spanish"), the shop UI uses codes; accept both.
@@ -30,7 +33,29 @@ const dirOf = (value: string | null) => {
 const clock = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
 // text is what the buyer reads; textEn is the English counterpart. The toggle swaps which one is large.
-export default function BuyerBubble({ message: m, view, delivery, assistantName }: Props) {
+export default function BuyerBubble({ message: m, view, delivery, assistantName, onReport }: Props) {
+  const [reporting, setReporting] = useState(false);
+  const [reason, setReason] = useState<ReportReason>("wrong_meaning");
+  const [comment, setComment] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [reportError, setReportError] = useState("");
+  const [sent, setSent] = useState(false);
+
+  async function submitReport() {
+    if (!onReport) return;
+    setBusy(true);
+    setReportError("");
+    try {
+      await onReport(m.id, reason, comment.trim());
+      setSent(true);
+      setReporting(false);
+    } catch (err) {
+      setReportError(err instanceof Error ? err.message : "The report could not be sent. Please try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (m.sender === "system") {
     return (
       <p role="status" data-testid={`message-${m.id}`} className="mx-auto max-w-[85%] rounded-full bg-slate-100 px-3.5 py-1.5 text-center text-xs text-slate-600">
@@ -70,7 +95,7 @@ export default function BuyerBubble({ message: m, view, delivery, assistantName 
           <p lang={knownLang(other.lang) ?? undefined} dir={dirOf(other.lang)} data-testid={`message-secondary-${m.id}`} className={`mt-1.5 border-t pt-1.5 text-[13px] ${mine ? "border-white/25" : "border-indigo-200/70"} ${sub}`}>
             <span className="mr-1.5 inline-flex items-center gap-1 rounded-md bg-black/5 px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wide">
               <Languages className="h-3 w-3" aria-hidden="true" />
-              {knownLang(other.lang) ?? other.lang ?? "en"}
+              {mine && other.lang === "en" ? "The shop reads" : (knownLang(other.lang) ?? other.lang ?? "en")}
             </span>
             <span className="break-words">{other.text}</span>
           </p>
@@ -101,8 +126,74 @@ export default function BuyerBubble({ message: m, view, delivery, assistantName 
               Listen
             </button>
           )}
+          {onReport && hasEnglish && !delivery &&
+            (m.reported || sent ? (
+              <span data-testid={`reported-${m.id}`} className="inline-flex items-center gap-1">
+                <Flag className="h-3 w-3" aria-hidden="true" />
+                Reported. The shop was told.
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setReporting((o) => !o)}
+                aria-expanded={reporting}
+                data-testid={`report-btn-${m.id}`}
+                className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+              >
+                <Flag className="h-3 w-3" aria-hidden="true" />
+                Report translation
+              </button>
+            ))}
         </div>
       </div>
+      {reporting && (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            void submitReport();
+          }}
+          data-testid={`report-form-${m.id}`}
+          className="mt-1.5 w-full max-w-[85%] rounded-xl border border-slate-200 bg-white p-3 text-sm shadow-sm sm:max-w-[75%]"
+        >
+          <p className="font-medium text-slate-900">What is wrong with this translation?</p>
+          <label htmlFor={`report-reason-${m.id}`} className="sr-only">
+            Reason
+          </label>
+          <select id={`report-reason-${m.id}`} value={reason} onChange={(e) => setReason(e.target.value as ReportReason)} data-testid={`report-reason-${m.id}`} className="mt-2 w-full rounded-lg border border-slate-300 bg-white px-2.5 py-2 text-sm text-slate-900">
+            {REPORT_REASONS.map((r) => (
+              <option key={r} value={r}>
+                {REPORT_REASON_LABEL[r]}
+              </option>
+            ))}
+          </select>
+          <label htmlFor={`report-comment-${m.id}`} className="sr-only">
+            Comment (optional)
+          </label>
+          <textarea
+            id={`report-comment-${m.id}`}
+            value={comment}
+            onChange={(e) => setComment(e.target.value)}
+            maxLength={REPORT_COMMENT_MAX}
+            rows={2}
+            placeholder="Tell the shop what it should say (optional)"
+            data-testid={`report-comment-${m.id}`}
+            className="mt-2 w-full resize-none rounded-lg border border-slate-300 bg-white px-2.5 py-2 text-sm text-slate-900 placeholder:text-slate-400"
+          />
+          {reportError && (
+            <p role="alert" data-testid={`report-error-${m.id}`} className="mt-2 text-xs text-red-700">
+              {reportError}
+            </p>
+          )}
+          <div className="mt-2 flex justify-end gap-2">
+            <button type="button" onClick={() => setReporting(false)} disabled={busy} className="rounded-full px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100">
+              Cancel
+            </button>
+            <button type="submit" disabled={busy} data-testid={`report-send-${m.id}`} className="rounded-full bg-indigo-600 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-indigo-700 disabled:bg-slate-300">
+              {busy ? "Sending..." : "Send report"}
+            </button>
+          </div>
+        </form>
+      )}
     </div>
   );
 }

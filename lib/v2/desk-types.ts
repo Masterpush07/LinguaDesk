@@ -1,4 +1,5 @@
 import type { OrderCard } from "@/lib/catalog";
+import type { TranslationReportDto } from "@/lib/v2/translation-report";
 
 // Shared by the desk API routes and the desk screens. Types only, so it is safe in both server and client code.
 
@@ -70,6 +71,7 @@ export type ThreadDetail = {
   product: { id: string; name: string; priceUsd: number; imageUrl: string | null } | null;
   selection: { colour?: string; qty?: number } | null; // what the buyer picked on the product page
   team: TeamMember[];
+  reports: TranslationReportDto[]; // translations the buyer flagged as wrong
 };
 
 export type CatalogItem = { id: string; name: string; priceUsd: number; stock: number };

@@ -5,6 +5,7 @@ import { requireStaff } from "@/lib/v2/guard";
 import { readSelection } from "@/lib/v2/selection";
 import { buyerLabel, fail, iso8601, loadBuyerOrders, loadHead, loadTeam } from "@/lib/v2/desk-threads";
 import type { DeskEvent, DeskMessage, DeskNote, ThreadDetail } from "@/lib/v2/desk-types";
+import type { ReportReason, TranslationReportDto } from "@/lib/v2/translation-report";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -19,7 +20,7 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
 
   const sql = db();
   // System notices (shipped, delivered) are linked to their order but must not repeat the order card, so the join skips them.
-  const [[buyer], messages, notes, events, orders, product, team, [selectionRow]] = await Promise.all([
+  const [[buyer], messages, notes, events, orders, product, team, [selectionRow], reports] = await Promise.all([
     sql`SELECT id, name, language FROM buyers WHERE id = ${thread.buyer.id}`,
     sql`SELECT m.id, m.sender, m.text, m.text_en, m.lang, m.voice_seconds, m.confidence, m.numbers_verified, m.created_at,
         st.name AS staff_name, o.card
@@ -35,6 +36,8 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
       WHERE t.id = ${id} AND p.seller_id = ${staff.sellerId}`,
     loadTeam(staff.sellerId),
     sql`SELECT selection FROM threads WHERE id = ${id}`,
+    sql`SELECT id, message_id, reason, comment, sender, original_text, translated_text, status, created_at
+      FROM translation_reports WHERE thread_id = ${id} AND seller_id = ${staff.sellerId} ORDER BY created_at DESC LIMIT 20`,
   ]);
 
   const body: ThreadDetail = {
@@ -71,6 +74,19 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
       load: member.load,
       maxConcurrent: member.maxConcurrent,
     })),
+    reports: reports.map(
+      (r): TranslationReportDto => ({
+        id: r.id,
+        messageId: r.message_id,
+        reason: r.reason as ReportReason,
+        comment: r.comment,
+        sender: r.sender,
+        originalText: r.original_text,
+        translatedText: r.translated_text,
+        status: r.status,
+        createdAt: iso8601(r.created_at),
+      }),
+    ),
   };
   return NextResponse.json(body);
 }

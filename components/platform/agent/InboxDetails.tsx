@@ -2,12 +2,13 @@
 
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
-import { ArrowLeft, ArrowRightLeft, Bot, ChevronDown, CircleCheck, Flame, History, NotebookPen, PackagePlus, RotateCcw, Sparkles, UserCheck } from "lucide-react";
+import { ArrowLeft, ArrowRightLeft, Bot, ChevronDown, CircleCheck, Flame, History, Languages, NotebookPen, PackagePlus, RotateCcw, Sparkles, UserCheck } from "lucide-react";
 import OrderBuilder from "@/components/platform/agent/OrderBuilder";
 import { focusRing, Initials, LangPill, StatusPill, statusHint } from "@/components/platform/agent/desk-ui";
 import { api, type StaffMe } from "@/lib/v2/client";
 import { formatDateTime, formatUsd } from "@/lib/v2/desk-client";
 import type { DeskEvent, ThreadDetail } from "@/lib/v2/desk-types";
+import { REPORT_REASON_LABEL } from "@/lib/v2/translation-report";
 
 export type DeskAction = "claim" | "transfer" | "escalate" | "resolve" | "reopen" | "handback";
 
@@ -73,6 +74,10 @@ function describe(e: DeskEvent): string {
       return `${who} added an internal note`;
     case "buyer_alerted":
       return `The buyer was notified (${Array.isArray(p.channels) ? p.channels.join(" and ") : "alert"})`;
+    case "translation_reported":
+      return "The buyer reported a translation";
+    case "translation_reviewed":
+      return `${who} reviewed a translation report`;
     case "order_paid":
       return `Payment for order ${text(p.orderId)} was marked as received`;
     case "order_unpaid":
@@ -83,7 +88,7 @@ function describe(e: DeskEvent): string {
 }
 
 export default function InboxDetails({ detail, staff, onBack, onAction, onChanged }: Props) {
-  const { thread, buyer, orders, product, team, notes, events } = detail;
+  const { thread, buyer, orders, product, team, notes, events, reports } = detail;
   const [transferOpen, setTransferOpen] = useState(false);
   const [orderOpen, setOrderOpen] = useState(false);
   const [pending, setPending] = useState(false);
@@ -103,6 +108,15 @@ export default function InboxDetails({ detail, staff, onBack, onAction, onChange
       await onAction(action, staffId);
     } finally {
       setPending(false);
+    }
+  }
+
+  async function setReport(reportId: string, status: "reviewed" | "open") {
+    try {
+      await api(`/api/desk/threads/${thread.id}/reports/${reportId}`, { method: "PATCH", json: { status } });
+      onChanged(status === "reviewed" ? "Translation report marked as reviewed." : "Translation report reopened.");
+    } catch (err) {
+      onChanged(err instanceof Error ? err.message : "The report could not be updated.");
     }
   }
 
@@ -320,6 +334,42 @@ export default function InboxDetails({ detail, staff, onBack, onAction, onChange
           </p>
         )}
       </Section>
+
+      {reports.length > 0 && (
+        <Section title={`Translation reports (${reports.filter((r) => r.status === "open").length} open)`} icon={<Languages className="h-3.5 w-3.5 text-amber-400" aria-hidden="true" />} testId="translation-reports">
+          <ul className="space-y-2" data-testid="translation-report-list">
+            {reports.map((r) => (
+              <li key={r.id} data-testid={`translation-report-${r.id}`} data-status={r.status} className="rounded-lg bg-[#111827] p-2.5 text-sm text-slate-200 ring-1 ring-slate-800">
+                <p className="font-medium text-amber-300">{REPORT_REASON_LABEL[r.reason] ?? r.reason}</p>
+                {r.comment && <p className="mt-1 whitespace-pre-wrap break-words text-slate-300">The buyer says: {r.comment}</p>}
+                <p className="mt-2 text-[11px] uppercase tracking-wide text-slate-500">{r.sender === "buyer" ? "The buyer wrote" : "Your message"}</p>
+                <p dir="auto" className="whitespace-pre-wrap break-words text-slate-100">{r.originalText}</p>
+                <p className="mt-1.5 text-[11px] uppercase tracking-wide text-slate-500">{r.sender === "buyer" ? "The shop was shown" : "The buyer was shown"}</p>
+                <p dir="auto" className="whitespace-pre-wrap break-words text-slate-100">{r.translatedText}</p>
+                <div className="mt-2 flex flex-wrap items-center gap-3 text-xs">
+                  {r.status === "open" ? (
+                    <button type="button" onClick={() => void setReport(r.id, "reviewed")} data-testid={`translation-report-review-${r.id}`} className={`rounded-md bg-slate-800 px-2.5 py-1 font-medium text-slate-100 hover:bg-slate-700 ${focusRing}`}>
+                      Mark as reviewed
+                    </button>
+                  ) : (
+                    <>
+                      <span className="text-emerald-400">Reviewed</span>
+                      <button type="button" onClick={() => void setReport(r.id, "open")} className={`text-slate-400 underline-offset-2 hover:underline ${focusRing}`}>
+                        Reopen
+                      </button>
+                    </>
+                  )}
+                  {owner && (
+                    <Link href="/seller/glossary" className={`text-indigo-300 underline-offset-2 hover:underline ${focusRing}`}>
+                      Fix with the AI glossary
+                    </Link>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </Section>
+      )}
 
       <Section title="Internal notes" icon={<NotebookPen className="h-3.5 w-3.5" aria-hidden="true" />} testId="internal-notes">
         {notes.length === 0 ? (

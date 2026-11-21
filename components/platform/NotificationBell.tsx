@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Bell, MessageSquareText, ShoppingBag, Star, UserRound } from "lucide-react";
+import { Bell, Languages, MessageSquareText, ShoppingBag, Star, UserRound } from "lucide-react";
 import { api } from "@/lib/v2/client";
 import PushToggle from "@/components/platform/PushToggle";
 import { REFRESH_EVENT } from "@/lib/v2/desk-client";
@@ -17,6 +17,7 @@ const ICON: Record<NotificationKind, typeof Bell> = {
   order_cancelled: ShoppingBag,
   return_requested: MessageSquareText,
   review_received: Star,
+  translation_reported: Languages,
 };
 
 const FOCUS = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400";
