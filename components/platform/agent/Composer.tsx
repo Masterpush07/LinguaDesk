@@ -29,6 +29,7 @@ export default function Composer({ thread, staff, drafts, onSent, onReopen }: Pr
   const [attempt, setAttempt] = useState(0);
   const [sending, setSending] = useState(false);
   const [failure, setFailure] = useState<SendFailure | null>(null);
+  const [sentNote, setSentNote] = useState<{ text: string; at: string } | null>(null);
   const [suggesting, setSuggesting] = useState(false);
   const [suggestNote, setSuggestNote] = useState("");
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -77,6 +78,7 @@ export default function Composer({ thread, staff, drafts, onSent, onReopen }: Pr
     setDraft(value);
     drafts.current.set(id, value);
     setFailure(null);
+    setSentNote(null);
   }
 
   async function send(sendOriginal: boolean) {
@@ -91,7 +93,12 @@ export default function Composer({ thread, staff, drafts, onSent, onReopen }: Pr
       drafts.current.delete(id);
       setDraft("");
       setPreview(null);
-      onSent(sendOriginal ? "Original message sent without translation." : "Reply sent. The buyer reads it in their language.");
+      // The confirmation stays above the reply box until the next message is typed, so it cannot be missed.
+      setSentNote({
+        text: sendOriginal ? "Original message sent without translation." : "Your reply was sent. The buyer reads it in their language.",
+        at: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      });
+      onSent("");
     } catch (err) {
       setFailure({ status: err instanceof ApiError ? err.status : 0, message: err instanceof Error ? err.message : "The reply could not be sent." });
     } finally {
@@ -169,6 +176,13 @@ export default function Composer({ thread, staff, drafts, onSent, onReopen }: Pr
             }}
           />
         </div>
+      )}
+      {sentNote && (
+        <p role="status" data-testid="reply-sent-note" className="mb-2 flex items-center gap-2 rounded-xl border border-emerald-400/50 bg-emerald-500/15 px-3 py-2.5 text-sm font-semibold text-emerald-100">
+          <Check className="h-5 w-5 shrink-0 text-emerald-300" aria-hidden="true" />
+          <span className="min-w-0 flex-1">{sentNote.text}</span>
+          <span className="shrink-0 font-mono text-xs font-normal text-emerald-200/80">{sentNote.at}</span>
+        </p>
       )}
       <div className="flex items-end gap-2">
         <div className="min-w-0 flex-1">
