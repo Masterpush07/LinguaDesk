@@ -47,7 +47,7 @@ function LearnCard({ item, highlighted, onDone }: CardProps) {
     <li id={`learn-${id}`} data-testid={`learn-item-${id}`} className={`rounded-2xl border bg-white p-4 ${highlighted ? "border-indigo-400 ring-2 ring-indigo-200" : "border-slate-200"}`}>
       <p className="text-xs text-slate-500" data-testid={`learn-asked-${id}`}>
         Asked {formatDateTime(item.askedAt)}
-        {item.answered && " Â· You already replied to this customer"}
+        {item.answered && ". You already replied to this customer"}
       </p>
       <div className="mt-3 space-y-3">
         <div>
