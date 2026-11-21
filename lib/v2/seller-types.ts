@@ -1,4 +1,5 @@
 // Types for the seller-studio API responses, shared by the routes and the screens.
+import type { WeekHours } from "@/lib/v2/hours";
 
 export type ProductDto = {
   id: string;
@@ -29,6 +30,9 @@ export type SettingsDto = {
   languages: string[];
   hours: string;
   tone: Tone;
+  businessHours: WeekHours; // opening times per weekday; an empty object means the shop is always open
+  timezone: string; // IANA zone the business hours are written in
+  awayMessage: string; // shown to customers while the shop is closed
   responseTargetMin: number;
   shipping: { freeAbove: number; fee: number; worldwideDays: string; domesticDays: string; notes: string };
   policies: { returns: string; payment: string; customOrders: string; discounts: string; giftWrap: string; care: string };
@@ -152,6 +156,9 @@ export function settingsPayload(s: SettingsDto) {
     country: s.country,
     languages: s.languages,
     hours: s.hours,
+    businessHours: s.businessHours,
+    timezone: s.timezone,
+    awayMessage: s.awayMessage,
     tone: s.tone,
     responseTargetMin: s.responseTargetMin,
     shipping: s.shipping,

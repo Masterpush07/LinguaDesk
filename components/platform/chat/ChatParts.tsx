@@ -66,6 +66,16 @@ export function StatusBanner({ view, busy, onHandoff, onCancel, onNewQuestion, o
             {status === "assigned" && `${staffName} can see this whole conversation. Write your question below and the reply will appear here.`}
             {status === "resolved" && "Thank you for contacting the shop. How was your experience?"}
           </p>
+          {view.seller.hours.configured && !view.seller.hours.openNow && (
+            <div data-testid="chat-shop-away" className="mt-0.5 text-sm text-slate-600">
+              <p data-testid="chat-shop-away-text">
+                The shop team is away.{view.seller.hours.nextOpening ? ` They are back ${view.seller.hours.nextOpening} (${view.seller.hours.timeZone}).` : ""}
+              </p>
+              {view.seller.hours.awayMessage && (
+                <p data-testid="chat-shop-away-message" className="mt-0.5">{view.seller.hours.awayMessage}</p>
+              )}
+            </div>
+          )}
           {status === "waiting" && slaDueAt && (
             <p data-testid="chat-response-target" className="mt-0.5 text-xs text-slate-500">
               The shop aims to reply within {view.seller.responseTargetMin} minutes.

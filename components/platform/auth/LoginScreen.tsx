@@ -162,6 +162,14 @@ export default function LoginScreen({ initialTab = "signin" }: { initialTab?: Ta
             {busy ? "Please wait" : tab === "signin" ? "Sign in" : "Join the team"}
           </button>
         </form>
+        {tab === "signin" && (
+          <p className="mt-4 text-center text-sm text-slate-600" data-testid="login-forgot">
+            <Link href="/recover" data-testid="login-forgot-link" className={`font-medium text-indigo-600 underline underline-offset-2 hover:text-indigo-700 ${FOCUS}`}>
+              Forgot your passcode?
+            </Link>
+            <span className="mt-1 block text-xs text-slate-500">Shop owners can reset it with their recovery code. Team members should ask the shop owner.</span>
+          </p>
+        )}
       </div>
 
       <p className="mt-6 text-center text-sm text-slate-600">

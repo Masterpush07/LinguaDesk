@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 import { newId } from "@/lib/v2/crypto";
 import { requireStaff } from "@/lib/v2/guard";
 import { Check, fail, invalidBody, LIMITS, readJson } from "@/lib/v2/seller-api";
-import { checkProduct, productDto } from "@/lib/v2/seller-products";
+import { checkProduct, productDto, productImageProblem } from "@/lib/v2/seller-products";
 
 export async function GET() {
   const auth = await requireStaff();
@@ -21,6 +21,8 @@ export async function POST(req: NextRequest) {
   const check = new Check();
   const input = checkProduct(body, check);
   if (!check.ok) return check.response;
+  const imageProblem = await productImageProblem(auth.staff.sellerId, input.imageUrl);
+  if (imageProblem) return fail(imageProblem);
 
   const sql = db();
   const [{ n }] = await sql`SELECT count(*)::int AS n FROM products WHERE seller_id = ${auth.staff.sellerId}`;

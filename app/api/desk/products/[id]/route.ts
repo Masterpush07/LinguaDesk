@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { requireStaff } from "@/lib/v2/guard";
 import { Check, fail, invalidBody, readJson } from "@/lib/v2/seller-api";
-import { checkProduct, productDto } from "@/lib/v2/seller-products";
+import { checkProduct, productDto, productImageProblem } from "@/lib/v2/seller-products";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -36,6 +36,8 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
   const check = new Check();
   const input = checkProduct(merged, check);
   if (!check.ok) return check.response;
+  const imageProblem = await productImageProblem(auth.staff.sellerId, input.imageUrl);
+  if (imageProblem) return fail(imageProblem);
 
   const [row] = await sql`UPDATE products SET name = ${input.name}, description = ${input.description}, category = ${input.category},
       price_usd = ${input.priceUsd}, colors = ${input.colors}, sizes = ${input.sizes}, stock = ${input.stock},

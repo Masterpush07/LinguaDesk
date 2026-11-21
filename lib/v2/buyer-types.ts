@@ -40,10 +40,14 @@ export type BuyerThreadView = {
     languages: string[];
     teamOnline: boolean;
     responseTargetMin: number;
+    hours: { configured: boolean; openNow: boolean; nextOpening: string | null; timeZone: string; awayMessage: string };
   };
   product: { id: string; name: string; priceUsd: number; imageUrl: string | null; stock: number } | null;
+  selection: BuyerSelection | null; // what the buyer picked on the product page
   messages: BuyerMessage[];
 };
+
+export type BuyerSelection = { colour?: string; qty?: number };
 
 export type BuyerThreadSummary = {
   id: string;
@@ -66,4 +70,26 @@ export type BuyerOrder = {
   courier: string | null;
   tracking: string | null;
   card: OrderCard | null;
+  cancelReason: string | null;
+  cancelledAt: string | null;
+  returnEligible: boolean; // delivered within the last 30 days with no return request yet
+  returnRequest: BuyerReturn | null;
+  review: BuyerReview | null;
 };
+
+export const RETURN_REASONS = ["damaged", "wrong_item", "not_as_described", "changed_mind", "other"] as const;
+export const RETURN_WINDOW_DAYS = 30;
+export type ReturnReason = (typeof RETURN_REASONS)[number];
+export type ReturnStatus = "requested" | "approved" | "rejected" | "refunded" | "closed";
+
+export type BuyerReturn = {
+  id: string;
+  status: ReturnStatus;
+  reason: ReturnReason;
+  details: string;
+  photoUrl: string | null;
+  sellerNote: string;
+  createdAt: string;
+};
+
+export type BuyerReview = { rating: number; body: string; createdAt: string };

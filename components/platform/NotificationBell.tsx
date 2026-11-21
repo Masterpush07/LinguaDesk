@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Bell, MessageSquareText, ShoppingBag, UserRound } from "lucide-react";
+import { Bell, MessageSquareText, ShoppingBag, Star, UserRound } from "lucide-react";
 import { api } from "@/lib/v2/client";
+import PushToggle from "@/components/platform/PushToggle";
 import { REFRESH_EVENT } from "@/lib/v2/desk-client";
 import type { NotificationKind, NotificationsDto } from "@/lib/v2/notification-types";
 
@@ -13,6 +14,9 @@ const ICON: Record<NotificationKind, typeof Bell> = {
   needs_reply: MessageSquareText,
   handoff_requested: UserRound,
   order_confirmed: ShoppingBag,
+  order_cancelled: ShoppingBag,
+  return_requested: MessageSquareText,
+  review_received: Star,
 };
 
 const FOCUS = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400";
@@ -192,6 +196,11 @@ export default function NotificationBell() {
               })}
             </ul>
           )}
+
+          <div data-testid="notification-push-row" className="border-t border-slate-800 px-4 py-3">
+            <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400">Alerts on this device</h3>
+            <PushToggle audience="staff" compact tone="dark" />
+          </div>
 
           <Link href="/agent" onClick={() => setOpen(false)} data-testid="notification-open-inbox" className={`block border-t border-slate-800 px-4 py-2.5 text-center text-xs font-medium text-indigo-300 hover:bg-slate-800/70 ${FOCUS}`}>
             Open inbox

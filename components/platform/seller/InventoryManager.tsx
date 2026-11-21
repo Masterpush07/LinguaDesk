@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
-import { Minus, PackageOpen, Pencil, Plus, Trash2 } from "lucide-react";
+import { useRef, useState } from "react";
+import { ImageIcon, Loader2, Minus, PackageOpen, Pencil, Plus, Trash2, Upload, X } from "lucide-react";
 import { BTN_DANGER, BTN_GHOST, BTN_PRIMARY, Card, Dialog, ErrorBlock, FieldError, FOCUS, INPUT, Label, LoadingBlock, Notice, Toggle } from "@/components/platform/seller/ui";
 import { EmptyState, NextAction } from "@/components/platform/ui";
 import { api } from "@/lib/v2/client";
+import { uploadImage } from "@/lib/v2/image-upload";
 import { errorMessage, useApi } from "@/lib/v2/seller-hooks";
 import { formatUsd, type ProductDto } from "@/lib/v2/seller-types";
 
@@ -15,6 +16,8 @@ const EMPTY: Form = { name: "", description: "", category: "", price: "", stock:
 
 const toList = (s: string) => Array.from(new Set(s.split(",").map((x) => x.trim()).filter(Boolean)));
 const WHOLE = /^\d+$/;
+// Mirrors ASSET_URL in lib/v2/assets.ts, which is server-only.
+const UPLOADED_IMAGE = /^\/api\/assets\/ast_[A-Za-z0-9_-]{6,40}$/;
 
 function validate(f: Form): Errors {
   const e: Errors = {};
@@ -31,7 +34,7 @@ function validate(f: Form): Errors {
     if (items.length > 8 || items.some((x) => x.length > 40)) e[key] = `${label}: at most 8 items of 40 characters each.`;
   }
   const url = f.imageUrl.trim();
-  if (url) {
+  if (url && !UPLOADED_IMAGE.test(url)) {
     let valid = false;
     try {
       const p = new URL(url).protocol;
@@ -43,6 +46,110 @@ function validate(f: Form): Errors {
     else if (url.length > 500) e.imageUrl = "The image address must be at most 500 characters.";
   }
   return e;
+}
+
+function ImageField({ value, onChange, error, inputClass, disabled, onBusy }: { value: string; onChange: (url: string) => void; error?: string; inputClass: string; disabled: boolean; onBusy: (busy: boolean) => void }) {
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
+  const [dragging, setDragging] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null);
+  const url = value.trim();
+  const uploaded = UPLOADED_IMAGE.test(url);
+
+  const upload = async (file: File | undefined) => {
+    if (!file) return;
+    setUploadError("");
+    setUploading(true);
+    onBusy(true);
+    try {
+      const image = await uploadImage(file, "product");
+      onChange(image.url);
+    } catch (err) {
+      setUploadError(errorMessage(err));
+    } finally {
+      setUploading(false);
+      onBusy(false);
+      if (fileInput.current) fileInput.current.value = "";
+    }
+  };
+
+  return (
+    <div>
+      <Label htmlFor="pd-image-file" hint="Optional. JPEG, PNG or WebP. Large photos are reduced automatically.">Image</Label>
+      <div
+        data-testid="product-image-dropzone"
+        onDragOver={(e) => {
+          e.preventDefault();
+          if (!uploading) setDragging(true);
+        }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDragging(false);
+          if (!uploading) void upload(e.dataTransfer.files[0]);
+        }}
+        className={`flex flex-wrap items-center gap-3 rounded-xl border border-dashed p-3 transition-colors motion-reduce:transition-none ${dragging ? "border-indigo-500 bg-indigo-50" : "border-slate-300 bg-slate-50"}`}
+      >
+        {url && !error ? (
+          <ImagePreview key={url} url={url} />
+        ) : (
+          <span className="flex h-20 w-20 items-center justify-center rounded-lg bg-white text-slate-400 ring-1 ring-slate-200" aria-hidden="true">
+            <ImageIcon className="h-7 w-7" />
+          </span>
+        )}
+        <div className="flex min-w-0 flex-1 flex-col items-start gap-2">
+          <input
+            ref={fileInput}
+            id="pd-image-file"
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            disabled={uploading || disabled}
+            onChange={(e) => void upload(e.target.files?.[0])}
+            data-testid="product-image-file"
+            className="sr-only"
+          />
+          <div className="flex flex-wrap items-center gap-2">
+            <button type="button" onClick={() => fileInput.current?.click()} disabled={uploading || disabled} data-testid="product-image-upload" className={`${BTN_GHOST} !px-3 !py-1.5`}>
+              <Upload className="h-4 w-4" aria-hidden="true" />
+              {uploading ? "Uploading image" : uploaded ? "Replace image" : "Upload image"}
+            </button>
+            {url && (
+              <button type="button" onClick={() => { onChange(""); setUploadError(""); }} disabled={uploading} data-testid="product-image-remove" className={`${BTN_GHOST} !px-3 !py-1.5`}>
+                <X className="h-4 w-4" aria-hidden="true" />
+                Remove image
+              </button>
+            )}
+          </div>
+          <p className="text-xs text-slate-500">or drag an image here</p>
+          {uploading && (
+            <p role="status" data-testid="product-image-uploading" className="inline-flex items-center gap-1.5 text-xs text-slate-600">
+              <Loader2 className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" aria-hidden="true" />
+              Preparing and uploading the image
+            </p>
+          )}
+          {uploadError && (
+            <p role="alert" data-testid="product-image-upload-error" className="text-xs text-red-600">{uploadError}</p>
+          )}
+        </div>
+      </div>
+      <div className="mt-3">
+        <Label htmlFor="pd-image" hint="Optional. A public link that starts with https://.">Or paste an image address</Label>
+        <input
+          id="pd-image"
+          inputMode="url"
+          value={uploaded ? "" : value}
+          onChange={(e) => onChange(e.target.value)}
+          disabled={uploaded}
+          aria-describedby="pd-image-error"
+          aria-invalid={!!error}
+          data-testid="product-image-input"
+          className={inputClass}
+          placeholder={uploaded ? "An uploaded image is in use" : "https://example.com/scarf.jpg"}
+        />
+        <FieldError id="pd-image-error" message={error} testId="product-image-error" />
+      </div>
+    </div>
+  );
 }
 
 function Thumb({ url, name, className }: { url: string | null; name: string; className: string }) {
@@ -84,6 +191,7 @@ export default function InventoryManager() {
   const [errors, setErrors] = useState<Errors>({});
   const [formError, setFormError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
@@ -329,20 +437,15 @@ export default function InventoryManager() {
                 <FieldError id="pd-sizes-error" message={errors.sizes} testId="product-sizes-error" />
               </div>
             </div>
-            <div>
-              <Label htmlFor="pd-image" hint="Optional. A public link that starts with https://.">Image address</Label>
-              <input id="pd-image" inputMode="url" value={form.imageUrl} onChange={(e) => setForm({ ...form, imageUrl: e.target.value })} aria-describedby="pd-image-error" aria-invalid={!!errors.imageUrl} data-testid="product-image-input" className={fieldClass("imageUrl")} placeholder="https://example.com/scarf.jpg" />
-              <FieldError id="pd-image-error" message={errors.imageUrl} testId="product-image-error" />
-              {form.imageUrl.trim() && !validate({ ...EMPTY, imageUrl: form.imageUrl }).imageUrl && <ImagePreview key={form.imageUrl.trim()} url={form.imageUrl.trim()} />}
-            </div>
+            <ImageField value={form.imageUrl} onChange={(imageUrl) => setForm((f) => ({ ...f, imageUrl }))} error={errors.imageUrl} inputClass={fieldClass("imageUrl")} disabled={saving} onBusy={setUploading} />
             <div className="flex items-center gap-3">
               <Toggle checked={form.active} onChange={(v) => setForm({ ...form, active: v })} label="Visible to customers and the AI" testId="product-active-toggle" />
               <span className="text-sm text-slate-700">Visible to customers and the AI</span>
             </div>
             <div role="alert" data-testid="product-form-error" className="min-h-5 text-sm font-medium text-red-600">{formError}</div>
             <div className="flex justify-end gap-2 pt-1">
-              <button type="button" onClick={() => setEditing(null)} data-testid="product-cancel" className={BTN_GHOST}>Cancel</button>
-              <button type="submit" disabled={saving} data-testid="product-submit" className={BTN_PRIMARY}>
+              <button type="button" onClick={() => setEditing(null)} disabled={uploading} data-testid="product-cancel" className={BTN_GHOST}>Cancel</button>
+              <button type="submit" disabled={saving || uploading} data-testid="product-submit" className={BTN_PRIMARY}>
                 <PackageOpen className="h-4 w-4" aria-hidden="true" />
                 {saving ? "Saving" : editing === "new" ? "Add to my shop" : "Save changes"}
               </button>

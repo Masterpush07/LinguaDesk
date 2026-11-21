@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { ASSET_URL } from "@/lib/v2/assets";
 
 // Server-only helpers shared by the seller-studio routes under /api/desk.
 
@@ -101,13 +102,14 @@ export class Check {
       this.errors.push(`Image URL must be at most ${LIMITS.imageUrl} characters.`);
       return null;
     }
+    if (ASSET_URL.test(s)) return s;
     try {
       const url = new URL(s);
       if (url.protocol === "http:" || url.protocol === "https:") return s;
     } catch {
       // falls through to the error below
     }
-    this.errors.push("Image URL must start with http:// or https://.");
+    this.errors.push("Image URL must start with http:// or https:// or be an image uploaded to your shop.");
     return null;
   }
 

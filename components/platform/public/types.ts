@@ -7,7 +7,11 @@ export type ShopSummary = {
   teamOnline: boolean;
   productCount: number;
   responseTargetMin: number;
+  rating: number | null;
+  reviewCount: number;
 };
+
+export type ShopReview = { rating: number; body: string; createdAt: string };
 
 export type CatalogProduct = {
   id: string;
@@ -36,7 +40,10 @@ export type ShopDetail = {
     policies: { returns?: string; payment?: string; customOrders?: string; discounts?: string; giftWrap?: string; care?: string };
     teamOnline: boolean;
     responseTargetMin: number;
+    rating: number | null;
+    reviewCount: number;
   };
+  reviews: ShopReview[];
   products: CatalogProduct[];
   faqs: { q: string; a: string }[];
 };

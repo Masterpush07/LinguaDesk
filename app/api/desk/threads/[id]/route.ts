@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import type { OrderCard } from "@/lib/catalog";
 import { requireStaff } from "@/lib/v2/guard";
+import { readSelection } from "@/lib/v2/selection";
 import { buyerLabel, fail, iso8601, loadBuyerOrders, loadHead, loadTeam } from "@/lib/v2/desk-threads";
 import type { DeskEvent, DeskMessage, DeskNote, ThreadDetail } from "@/lib/v2/desk-types";
 
@@ -18,7 +19,7 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
 
   const sql = db();
   // System notices (shipped, delivered) are linked to their order but must not repeat the order card, so the join skips them.
-  const [[buyer], messages, notes, events, orders, product, team] = await Promise.all([
+  const [[buyer], messages, notes, events, orders, product, team, [selectionRow]] = await Promise.all([
     sql`SELECT id, name, language FROM buyers WHERE id = ${thread.buyer.id}`,
     sql`SELECT m.id, m.sender, m.text, m.text_en, m.lang, m.voice_seconds, m.confidence, m.numbers_verified, m.created_at,
         st.name AS staff_name, o.card
@@ -33,6 +34,7 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
     sql`SELECT p.id, p.name, p.price_usd, p.image_url FROM threads t JOIN products p ON p.id = t.product_id
       WHERE t.id = ${id} AND p.seller_id = ${staff.sellerId}`,
     loadTeam(staff.sellerId),
+    sql`SELECT selection FROM threads WHERE id = ${id}`,
   ]);
 
   const body: ThreadDetail = {
@@ -58,6 +60,7 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
     events: events.map((e): DeskEvent => ({ type: e.type, actor: e.actor, payload: e.payload ?? {}, at: iso8601(e.at) })),
     orders,
     product: product[0] ? { id: product[0].id, name: product[0].name, priceUsd: product[0].price_usd, imageUrl: product[0].image_url } : null,
+    selection: product[0] ? readSelection(selectionRow?.selection) : null,
     team: team.map((member) => ({
       id: member.id,
       name: member.name,

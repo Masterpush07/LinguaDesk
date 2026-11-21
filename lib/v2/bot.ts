@@ -5,6 +5,7 @@ import { sendDirectText } from "@/lib/nexconn-server";
 import { onlyKnownNumbers } from "@/lib/number-check";
 import { buildKnowledge } from "@/lib/shop-data";
 import { newId } from "@/lib/v2/crypto";
+import { hoursStatus, summarizeHours, type HoursStatus } from "@/lib/v2/hours";
 import { notifyShop } from "@/lib/v2/notifications";
 import { languageCode } from "@/lib/v2/voice";
 import { assistantName, loadShop, sellerByNexconnId, type SellerRow } from "@/lib/v2/shop";
@@ -53,6 +54,27 @@ async function ensureThread(seller: SellerRow, buyerId: string) {
   return thread;
 }
 
+function buildHoursNote(seller: SellerRow, hours: HoursStatus): string {
+  const base = `Shop hours: ${summarizeHours(seller.business_hours ?? {})} ${seller.timezone}.`;
+  if (hours.openNow) return `${base} The shop is open now. If the customer asks when someone will reply, say a team member will reply as soon as possible.`;
+  const reopens = hours.nextOpening ? ` and reopens ${hours.nextOpening.label}` : "";
+  return `${base} The shop is currently closed${reopens}. If the customer asks when someone will reply, say this.`;
+}
+
+// Tells the assistant which product the customer is looking at and what they picked on the product page.
+async function threadContext(thread: Record<string, unknown>, sellerId: string): Promise<string> {
+  if (typeof thread.product_id !== "string") return "";
+  const [p] = await db()`SELECT name FROM products WHERE id = ${thread.product_id} AND seller_id = ${sellerId}`;
+  if (!p) return "";
+  const sel = thread.selection && typeof thread.selection === "object" ? (thread.selection as Record<string, unknown>) : {};
+  const picked = [
+    typeof sel.colour === "string" && sel.colour ? `selected colour ${sel.colour.slice(0, 40)}` : "",
+    typeof sel.size === "string" && sel.size ? `selected size ${sel.size.slice(0, 40)}` : "",
+    typeof sel.qty === "number" && Number.isFinite(sel.qty) ? `quantity ${sel.qty}` : "",
+  ].filter(Boolean);
+  return `Context: the customer is asking about the product '${String(p.name).slice(0, 80)}'${picked.length ? ` (${picked.join(", ")})` : ""}.`;
+}
+
 async function answerBuyer(seller: SellerRow, buyerId: string, messageId: string, text: string) {
   const sql = db();
   const thread = await ensureThread(seller, buyerId);
@@ -66,7 +88,10 @@ async function answerBuyer(seller: SellerRow, buyerId: string, messageId: string
   }
 
   const { shop, extra } = await loadShop(seller.id);
-  const kb = [buildKnowledge(shop), extra].filter(Boolean).join("\n\n");
+  const now = new Date();
+  const hours = hoursStatus(seller.business_hours, seller.timezone, now);
+  const hoursNote = hours.configured ? buildHoursNote(seller, hours) : undefined;
+  const kb = [buildKnowledge(shop), extra, await threadContext(thread, seller.id)].filter(Boolean).join("\n\n");
   const recent = await sql`SELECT sender, text, text_en FROM thread_messages WHERE thread_id = ${threadId} ORDER BY created_at DESC LIMIT 8`;
   const history: HistoryItem[] = recent.reverse().map((r) => ({
     from: r.sender === "buyer" ? "customer" : r.sender === "staff" ? "shop_owner" : "shop_ai",
@@ -79,6 +104,7 @@ async function answerBuyer(seller: SellerRow, buyerId: string, messageId: string
       name: assistantName(seller.shop_name, seller.agent_name),
       shop: seller.shop_name,
       tone: TONES.find((t) => t === seller.tone) ?? "neutral",
+      hoursNote,
     };
     reply = await generateReply(text, { kb, history, persona });
   } catch (err) {
@@ -87,7 +113,7 @@ async function answerBuyer(seller: SellerRow, buyerId: string, messageId: string
 
   // A number that is neither in the shop info, the buyer's message nor something the shop already said never reaches the buyer.
   const shopSaid = history.filter((h) => h.from !== "customer").map((h) => h.text);
-  if (reply && !onlyKnownNumbers(reply.answer, kb, text, ...shopSaid)) {
+  if (reply && !onlyKnownNumbers(reply.answer, kb, text, hoursNote ?? "", ...shopSaid)) {
     console.error("AI answer blocked, unknown number:", reply.answer);
     reply = { ...reply, needs_human: true, answer: FALLBACK_ANSWER, owner_summary: `${reply.owner_summary} (The AI draft was blocked because it contained a number that is not in the shop information.)` };
   }
@@ -107,8 +133,11 @@ async function answerBuyer(seller: SellerRow, buyerId: string, messageId: string
   if (needsHuman && (thread.status === "ai" || thread.status === "assigned")) {
     const priority = priorityFor(reply?.customer_text_en ?? text);
     // A thread whose staff went quiet goes back to the queue; a thread already waiting keeps its place and original SLA.
+    // While the shop is closed the response-time clock starts at the next opening.
+    const slaStart = hours.configured && !hours.openNow && hours.nextOpening ? hours.nextOpening.at : now;
+    const slaDueAt = new Date(slaStart.getTime() + seller.response_target_min * 60_000);
     await sql`UPDATE threads SET status = 'waiting', assigned_staff_id = NULL, summary = ${reply?.owner_summary ?? text}, priority = ${priority},
-        handoff_at = now(), sla_due_at = now() + make_interval(mins => ${seller.response_target_min}), first_response_at = NULL WHERE id = ${threadId}`;
+        handoff_at = now(), sla_due_at = ${slaDueAt.toISOString()}::timestamptz, first_response_at = NULL WHERE id = ${threadId}`;
     await logEvent(threadId, "handoff", "ai", { reason: reply ? "ai_requested" : "ai_unavailable", priority });
     // The owner is told in the app whether or not a teammate is online to take it.
     await notifyShop(

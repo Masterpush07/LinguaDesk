@@ -68,6 +68,7 @@ export type ThreadDetail = {
   events: DeskEvent[];
   orders: DeskOrder[];
   product: { id: string; name: string; priceUsd: number; imageUrl: string | null } | null;
+  selection: { colour?: string; qty?: number } | null; // what the buyer picked on the product page
   team: TeamMember[];
 };
 

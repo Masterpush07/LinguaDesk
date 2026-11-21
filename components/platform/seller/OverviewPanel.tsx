@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { AlertTriangle, Languages, MessageSquare, Plus, ShieldCheck, Sparkles, UserPlus } from "lucide-react";
+import { AlertTriangle, BookOpenCheck, Languages, MessageSquare, Plus, ShieldCheck, Sparkles, UserPlus } from "lucide-react";
 import { Card, ErrorBlock, FOCUS, LoadingBlock } from "@/components/platform/seller/ui";
 import { NextAction, PageHeading, StatusBadge } from "@/components/platform/ui";
 import { useStaff } from "@/lib/v2/client";
+import type { LearnResponse } from "@/lib/v2/learn-types";
 import { browserTimeZone, useApi } from "@/lib/v2/seller-hooks";
 import { formatDateTime, PRIORITY_LABEL, type OverviewDto } from "@/lib/v2/seller-types";
 
@@ -25,6 +26,7 @@ export default function OverviewPanel() {
   const staff = useStaff({ owner: true });
   const [tz] = useState(browserTimeZone);
   const { data, error, loading, reload } = useApi<OverviewDto>(`/api/desk/overview?tz=${encodeURIComponent(tz)}`);
+  const learn = useApi<LearnResponse>("/api/desk/learn");
 
   const kpis = data
     ? [
@@ -102,6 +104,21 @@ export default function OverviewPanel() {
             </Card>
 
             <div className="flex flex-col gap-6">
+              {learn.data && learn.data.total > 0 && (
+                <Card testId="learn-card">
+                  <div className="mb-2 flex items-center gap-2">
+                    <BookOpenCheck className="h-4 w-4 text-indigo-600" aria-hidden="true" />
+                    <h2 className="font-heading text-lg font-semibold text-slate-900">Questions to teach the assistant</h2>
+                  </div>
+                  <p className="text-sm text-slate-600">
+                    <span className="font-heading text-2xl font-semibold text-slate-900" data-testid="learn-card-count">{learn.data.total}</span>{" "}
+                    {learn.data.total === 1 ? "customer question was" : "customer questions were"} not answered by the assistant.
+                  </p>
+                  <Link href="/seller/knowledge" data-testid="learn-card-link" className={`mt-3 inline-block rounded-full text-sm font-medium text-indigo-600 hover:text-indigo-700 ${FOCUS}`}>
+                    Review and teach
+                  </Link>
+                </Card>
+              )}
               <Card testId="low-stock-card">
                 <div className="mb-3 flex items-center gap-2">
                   <AlertTriangle className="h-4 w-4 text-amber-500" aria-hidden="true" />

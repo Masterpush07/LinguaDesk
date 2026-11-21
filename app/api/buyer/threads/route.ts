@@ -2,8 +2,9 @@ import { NextResponse, type NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { isLimited, recordEvent } from "@/lib/rate-limit";
 import { iso, loadThreadView, notFound, requireBuyer } from "@/lib/v2/buyer-api";
-import type { BuyerThreadSummary } from "@/lib/v2/buyer-types";
+import type { BuyerSelection, BuyerThreadSummary } from "@/lib/v2/buyer-types";
 import { newId } from "@/lib/v2/crypto";
+import { sanitizeSelection } from "@/lib/v2/selection";
 import { sellerBySlug } from "@/lib/v2/shop";
 
 const NEW_THREADS_PER_HOUR = 40;
@@ -41,7 +42,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const auth = await requireBuyer();
   if ("error" in auth) return auth.error;
-  const body = (await req.json().catch(() => null)) as { sellerSlug?: unknown; productId?: unknown } | null;
+  const body = (await req.json().catch(() => null)) as { sellerSlug?: unknown; productId?: unknown; selection?: unknown } | null;
   const slug = typeof body?.sellerSlug === "string" ? body.sellerSlug.trim() : "";
   const productId = typeof body?.productId === "string" && body.productId ? body.productId : null;
   if (!slug || slug.length > 80) return NextResponse.json({ error: "Choose a shop to talk to" }, { status: 400 });
@@ -51,9 +52,11 @@ export async function POST(req: NextRequest) {
 
   const sql = db();
   let validProductId: string | null = null;
+  let selection: BuyerSelection | null = null;
   if (productId) {
-    const [p] = await sql`SELECT id FROM products WHERE id = ${productId} AND seller_id = ${seller.id} AND active`;
+    const [p] = await sql`SELECT id, colors FROM products WHERE id = ${productId} AND seller_id = ${seller.id} AND active`;
     validProductId = p?.id ?? null;
+    if (p) selection = sanitizeSelection(body?.selection, Array.isArray(p.colors) ? (p.colors as string[]) : []);
   }
 
   const [existing] = await sql`SELECT id, product_id FROM threads WHERE seller_id = ${seller.id} AND buyer_id = ${auth.buyerId}`;
@@ -64,13 +67,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "You have opened many conversations in a short time. Please try again later." }, { status: 429 });
     }
     await sql`INSERT INTO buyers (id) VALUES (${auth.buyerId}) ON CONFLICT DO NOTHING`;
-    await sql`INSERT INTO threads (id, seller_id, buyer_id, product_id) VALUES (${newId("thr")}, ${seller.id}, ${auth.buyerId}, ${validProductId})
+    await sql`INSERT INTO threads (id, seller_id, buyer_id, product_id, selection) VALUES (${newId("thr")}, ${seller.id}, ${auth.buyerId}, ${validProductId}, ${selection ? JSON.stringify(selection) : null}::jsonb)
       ON CONFLICT (seller_id, buyer_id) DO NOTHING`;
     await recordEvent(key);
     const [created] = await sql`SELECT id FROM threads WHERE seller_id = ${seller.id} AND buyer_id = ${auth.buyerId}`;
     threadId = created.id;
-  } else if (validProductId && !existing.product_id) {
-    await sql`UPDATE threads SET product_id = ${validProductId} WHERE id = ${existing.id} AND product_id IS NULL`;
+  } else {
+    if (validProductId && !existing.product_id) {
+      await sql`UPDATE threads SET product_id = ${validProductId} WHERE id = ${existing.id} AND product_id IS NULL`;
+    }
+    // A new selection replaces the old one, but only for the product the conversation is about.
+    if (selection && (existing.product_id ?? validProductId) === validProductId) {
+      await sql`UPDATE threads SET selection = ${JSON.stringify(selection)}::jsonb WHERE id = ${existing.id}`;
+    }
   }
 
   const view = await loadThreadView(threadId, auth.buyerId);

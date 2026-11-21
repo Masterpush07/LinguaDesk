@@ -2,10 +2,13 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { Check, MessageCircle, RefreshCw, Truck } from "lucide-react";
+import { Check, ExternalLink, MessageCircle, RefreshCw, Truck } from "lucide-react";
+import { CurrencyNote, Price, usePrefs } from "@/components/platform/Prefs";
 import { api, ApiError } from "@/lib/v2/client";
 import type { BuyerOrder } from "@/lib/v2/buyer-types";
+import { trackingUrl } from "@/lib/v2/tracking";
 import CopyTracking from "./CopyTracking";
+import { CancelOrder, ReturnSection, ReviewSection } from "./OrderAfterSales";
 import { ORDER_STEPS, OrderStatusPill, shortDate } from "./orderStatus";
 
 type State = { kind: "loading" } | { kind: "missing" } | { kind: "error"; message: string } | { kind: "ready"; order: BuyerOrder };
@@ -16,6 +19,7 @@ export default function BuyerOrderDetail({ id }: { id: string }) {
   const [state, setState] = useState<State>({ kind: "loading" });
   const [confirming, setConfirming] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const { currency } = usePrefs();
 
   const load = useCallback(async () => {
     try {
@@ -93,6 +97,7 @@ export default function BuyerOrderDetail({ id }: { id: string }) {
   const cancelled = order.status === "cancelled";
   const currentIndex = ORDER_STEPS.findIndex((s) => s.key === order.status);
   const hasCourier = !!(order.courier || order.tracking);
+  const trackUrl = trackingUrl(order.courier, order.tracking);
   const timeOf = (key: string) => (key === "proposed" ? order.createdAt : key === "confirmed" ? order.confirmedAt : null);
 
   return (
@@ -126,9 +131,16 @@ export default function BuyerOrderDetail({ id }: { id: string }) {
             Order status
           </h2>
           {cancelled ? (
-            <p data-testid="order-cancelled-note" className="mt-4 rounded-xl bg-slate-50 p-4 text-sm text-slate-700">
-              The shop cancelled this order. If you have questions, contact the shop in your conversation.
-            </p>
+            <div data-testid="order-cancelled-note" className="mt-4 space-y-1 rounded-xl bg-slate-50 p-4 text-sm text-slate-700">
+              <p role="status">
+                This order was cancelled{order.cancelledAt ? ` on ${shortDate(order.cancelledAt)}` : ""}. If you have questions, contact the shop in your conversation.
+              </p>
+              {order.cancelReason && (
+                <p data-testid="order-cancel-reason-shown" className="text-slate-600">
+                  Reason: {order.cancelReason}
+                </p>
+              )}
+            </div>
           ) : (
             <ol className="mt-5" data-testid="order-timeline">
               {ORDER_STEPS.map((s, i) => {
@@ -186,11 +198,23 @@ export default function BuyerOrderDetail({ id }: { id: string }) {
                 {order.tracking && (
                   <div className="flex items-center justify-between gap-3">
                     <dt className="text-slate-500">Tracking number</dt>
-                    <dd className="flex items-center gap-2">
+                    <dd className="flex flex-wrap items-center justify-end gap-2">
                       <span className="font-mono text-slate-900" data-testid="order-tracking-number">
                         {order.tracking}
                       </span>
                       <CopyTracking value={order.tracking} />
+                      {trackUrl && (
+                        <a
+                          href={trackUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          data-testid="order-track-parcel-link"
+                          className={`inline-flex items-center gap-1 rounded text-xs font-medium text-indigo-700 hover:underline ${FOCUS}`}
+                        >
+                          Track this parcel <ExternalLink className="h-3 w-3" aria-hidden="true" />
+                          <span className="sr-only"> (opens in a new tab)</span>
+                        </a>
+                      )}
                     </dd>
                   </div>
                 )}
@@ -214,35 +238,44 @@ export default function BuyerOrderDetail({ id }: { id: string }) {
                       <span className="min-w-0 text-slate-700">
                         {l.name} <span className="text-slate-500">× {l.qty}</span>
                       </span>
-                      <span className="font-medium text-slate-900">${l.amount}</span>
+                      <Price usd={l.amount} className="font-medium text-slate-900" />
                     </li>
                   ))}
                 </ul>
                 <dl className="mt-3 space-y-1.5 border-t border-slate-100 pt-3 text-sm">
                   <div className="flex justify-between">
                     <dt className="text-slate-500">Subtotal</dt>
-                    <dd className="text-slate-900">${order.card.subtotal}</dd>
+                    <dd className="text-slate-900">
+                      <Price usd={order.card.subtotal} />
+                    </dd>
                   </div>
                   <div className="flex justify-between">
                     <dt className="text-slate-500">Shipping</dt>
                     <dd data-testid="order-shipping" className="text-slate-900">
-                      {order.card.shipping === 0 ? "Free" : `$${order.card.shipping}`}
+                      {order.card.shipping === 0 ? "Free" : <Price usd={order.card.shipping} />}
                     </dd>
                   </div>
                   <div className="flex justify-between pt-1">
                     <dt className="font-semibold text-slate-900">Total</dt>
                     <dd data-testid="order-total" className="font-heading text-lg font-semibold text-slate-900">
-                      ${order.total}
+                      <Price usd={order.total} />
                     </dd>
                   </div>
                 </dl>
               </>
             ) : (
               <p className="mt-3 text-sm text-slate-600">
-                Item details are not available. Total: <span data-testid="order-total">${order.total}</span>
+                Item details are not available. Total:{" "}
+                <span data-testid="order-total">
+                  <Price usd={order.total} />
+                </span>
               </p>
             )}
-            <p className="mt-3 text-xs text-slate-500">Amounts are in US dollars, as priced by the shop.</p>
+            {currency === "USD" ? (
+              <p className="mt-3 text-xs text-slate-500">Amounts are in US dollars, as priced by the shop.</p>
+            ) : (
+              <CurrencyNote className="mt-3" testId="order-currency-note" />
+            )}
           </section>
 
           <section aria-label="Order actions" className="space-y-3 rounded-2xl border border-slate-200 bg-white p-5" data-testid="order-help-card">
@@ -262,6 +295,7 @@ export default function BuyerOrderDetail({ id }: { id: string }) {
                 {actionError}
               </p>
             )}
+            <CancelOrder order={order} onDone={load} />
             <Link
               href={`/chat/${order.seller.slug}`}
               data-testid="order-contact-seller"
@@ -270,6 +304,9 @@ export default function BuyerOrderDetail({ id }: { id: string }) {
               <MessageCircle className="h-4 w-4" aria-hidden="true" /> Contact the shop
             </Link>
           </section>
+
+          <ReturnSection order={order} onDone={load} />
+          <ReviewSection order={order} onDone={load} />
         </div>
       </div>
     </>

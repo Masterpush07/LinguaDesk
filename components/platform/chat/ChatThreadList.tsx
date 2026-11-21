@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { RefreshCw, Store } from "lucide-react";
+import PushToggle from "@/components/platform/PushToggle";
 import { EmptyState, StatusBadge, statusHint } from "@/components/platform/ui";
 import { api, ApiError } from "@/lib/v2/client";
 import type { BuyerThreadSummary } from "@/lib/v2/buyer-types";
@@ -71,6 +73,10 @@ export default function ChatThreadList() {
   }
 
   return (
+    <>
+    <div data-testid="chat-list-alerts" className="mb-4 rounded-2xl border border-slate-200 bg-white px-4 py-3">
+      <PushToggle audience="buyer" compact />
+    </div>
     <ul data-testid="chat-thread-list" className="divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-200 bg-white">
       {state.threads.map((t) => (
         <li key={t.id} data-testid={`chat-thread-${t.seller.slug}`}>
@@ -103,5 +109,17 @@ export default function ChatThreadList() {
         </li>
       ))}
     </ul>
+    </>
+  );
+}
+
+// Shown after a one-time link was refused; the link route redirects here with ?link=invalid.
+export function LinkNotice() {
+  const invalid = useSearchParams().get("link") === "invalid";
+  if (!invalid) return null;
+  return (
+    <p role="alert" data-testid="chats-link-invalid" className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+      This link has expired or was already used. Create a new link on your other device.
+    </p>
   );
 }

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Pencil, Plus, Save, Trash2, X } from "lucide-react";
 import { BTN_DANGER, BTN_GHOST, BTN_PRIMARY, Card, ErrorBlock, FieldError, FOCUS, INPUT, Label, LoadingBlock, Notice } from "@/components/platform/seller/ui";
 import { NextAction } from "@/components/platform/ui";
+import LearnPanel from "@/components/platform/seller/LearnPanel";
 import { api } from "@/lib/v2/client";
 import { errorMessage, useApi } from "@/lib/v2/seller-hooks";
 import type { FaqDto } from "@/lib/v2/seller-types";
@@ -98,6 +99,7 @@ export default function KnowledgeManager() {
 
   return (
     <div className="space-y-6">
+      <LearnPanel onSaved={reload} />
       <p data-testid="knowledge-explainer" className="rounded-2xl border border-indigo-100 bg-indigo-50/60 p-4 text-sm text-slate-700">
         The AI answers customers only from three places: this page, your products and your shop policies in Settings. If a question is not covered, it does not guess: it tells the customer the shop will reply and sends you a notification in the app.
       </p>

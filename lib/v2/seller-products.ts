@@ -1,3 +1,5 @@
+import { db } from "@/lib/db";
+import { ASSET_URL } from "@/lib/v2/assets";
 import type { Check } from "@/lib/v2/seller-api";
 import { iso, LIMITS } from "@/lib/v2/seller-api";
 import type { ProductDto } from "@/lib/v2/seller-types";
@@ -18,6 +20,14 @@ export function productDto(r: Row): ProductDto {
     active: r.active as boolean,
     updatedAt: iso(r.updated_at) ?? "",
   };
+}
+
+// An uploaded image must exist, be a product image and belong to the same shop. External addresses need no check. Returns an error message or null.
+export async function productImageProblem(sellerId: string, imageUrl: string | null): Promise<string | null> {
+  if (!imageUrl || !ASSET_URL.test(imageUrl)) return null;
+  const [asset] = await db()`SELECT seller_id, kind FROM assets WHERE id = ${imageUrl.slice("/api/assets/".length)}`;
+  if (!asset || asset.kind !== "product" || asset.seller_id !== sellerId) return "That image was not uploaded to your shop as a product image. Upload it again.";
+  return null;
 }
 
 export type ProductInput = Omit<ProductDto, "id" | "updatedAt">;

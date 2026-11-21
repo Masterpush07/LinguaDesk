@@ -27,7 +27,7 @@ export default function ProductPurchasePanel({
   const [qty, setQty] = useState(1);
   const out = stock === 0;
   const low = stock > 0 && stock <= 5;
-  const chatHref = `/chat/${seller}?product=${productId}`;
+  const chatHref = `/chat/${seller}?product=${productId}${color ? `&colour=${encodeURIComponent(color)}` : ""}${out ? "" : `&qty=${qty}`}`;
 
   return (
     <div className="space-y-6" data-testid="product-purchase-panel">
