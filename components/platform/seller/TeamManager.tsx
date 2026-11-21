@@ -179,7 +179,7 @@ export default function TeamManager() {
       <Card className="overflow-x-auto !p-0" testId="team-card">
         <div className="px-5 pt-5">
           <h2 className="font-heading text-lg font-semibold text-slate-900">Team members</h2>
-          <p className="mt-0.5 text-sm text-slate-500">Online means their inbox is open. Conversations the AI cannot answer are assigned to online teammates who speak the customer&apos;s language and have capacity. If nobody is online, you are notified in the app.</p>
+          <p className="mt-0.5 text-sm text-slate-500">Available means their desk is open and they are taking conversations; Away means they paused new work; Offline means their desk is closed. Conversations the AI cannot answer are assigned to available teammates who speak the customer&apos;s language and have capacity. If nobody is available, you are notified in the app.</p>
         </div>
         {team.loading && <div className="p-5"><LoadingBlock label="Loading team" testId="team-loading" rows={2} /></div>}
         {team.error && !team.data && <div className="p-5"><ErrorBlock message={team.error} onRetry={team.reload} testId="team-error" /></div>}
@@ -204,9 +204,10 @@ export default function TeamManager() {
                     <p className="text-xs text-slate-500" data-testid={`member-role-${m.id}`}>{m.role === "owner" ? "Owner" : "Agent"}</p>
                   </td>
                   <td className="px-4 py-3" data-testid={`member-status-${m.id}`}>
-                    <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${m.online ? "text-emerald-700" : "text-slate-500"}`}>
-                      <span className={`h-2 w-2 rounded-full ${m.online ? "bg-emerald-500" : "bg-slate-400"}`} aria-hidden="true" />
-                      {m.online ? "Online" : "Away"}
+                    {/* Same three states as the Dispatch board: desk closed, desk open and taking work, desk open but paused. */}
+                    <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${m.online && m.available ? "text-emerald-700" : m.online ? "text-amber-700" : "text-slate-500"}`}>
+                      <span className={`h-2 w-2 rounded-full ${m.online && m.available ? "bg-emerald-500" : m.online ? "bg-amber-400" : "bg-slate-400"}`} aria-hidden="true" />
+                      {!m.online ? "Offline" : m.available ? "Available" : "Away"}
                     </span>
                     {!m.online && <p className="text-[11px] text-slate-400">{m.lastSeen ? `Last seen ${formatDateTime(m.lastSeen)}` : "Never signed in to the desk"}</p>}
                   </td>

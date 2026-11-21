@@ -9,7 +9,7 @@ const fmt = (s: number) => {
   const hh = Math.floor(abs / 3600);
   const mm = String(Math.floor((abs % 3600) / 60)).padStart(2, "0");
   const ss = String(abs % 60).padStart(2, "0");
-  return `${s < 0 ? "+" : ""}${hh > 0 ? `${hh}:` : ""}${mm}:${ss}`;
+  return `${hh > 0 ? `${hh}:` : ""}${mm}:${ss}`;
 };
 
 function Chip({ now, pending = false }: { now: number; pending?: boolean }) {
@@ -27,7 +27,7 @@ function Chip({ now, pending = false }: { now: number; pending?: boolean }) {
       className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 font-mono text-[10px] font-semibold tabular-nums ring-1 ${tone}`}
     >
       <Timer className="h-3 w-3" aria-hidden="true" />
-      {pending ? "--:--" : fmt(now)}
+      {pending ? "--:--" : now < 0 ? `Overdue ${fmt(now)}` : fmt(now)}
     </span>
   );
 }

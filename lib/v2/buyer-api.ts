@@ -101,7 +101,7 @@ export async function loadThreadView(threadId: string, buyerId: string, options:
       nexconnUserId: t.nexconn_user_id,
       country: t.country,
       languages: t.languages,
-      teamOnline: !!t.team_online,
+      teamOnline: !!t.team_online && hours.openNow,
       responseTargetMin: t.response_target_min,
       hours: {
         configured: hours.configured,
