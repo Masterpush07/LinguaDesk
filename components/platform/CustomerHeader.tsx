@@ -25,7 +25,7 @@ const SELECT = `h-9 shrink-0 rounded-lg border border-slate-200 bg-white px-2.5 
 
 export function Logo({ dark = false }: { dark?: boolean }) {
   return (
-    <Link href="/marketplace" className="flex shrink-0 items-center gap-2" data-testid="logo">
+    <Link href="/" className="flex shrink-0 items-center gap-2" data-testid="logo">
       <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-violet-600 via-indigo-600 to-cyan-500 text-white shadow-sm">
         <Globe2 className="h-4.5 w-4.5" aria-hidden="true" />
       </span>

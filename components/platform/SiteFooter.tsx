@@ -13,7 +13,7 @@ export default function SiteFooter() {
           <Link href="/pricing" className="hover:text-slate-900">Pricing</Link>
           <Link href="/sell" className="hover:text-slate-900">Sell on LinguaDesk</Link>
           <Link href="/demo" className="hover:text-slate-900">Live demo</Link>
-          <Link href="/" className="hover:text-slate-900">Original app</Link>
+          <Link href="/marketplace" className="hover:text-slate-900">Marketplace</Link>
         </div>
       </div>
     </footer>
