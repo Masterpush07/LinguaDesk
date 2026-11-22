@@ -6,7 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import { RefreshCw, Store } from "lucide-react";
 import PushToggle from "@/components/platform/PushToggle";
 import { EmptyState, StatusBadge, statusHint } from "@/components/platform/ui";
-import { api, ApiError } from "@/lib/v2/client";
+import { api } from "@/lib/v2/client";
 import type { BuyerThreadSummary } from "@/lib/v2/buyer-types";
 
 const SENDER_LABEL: Record<string, string> = { buyer: "You", ai: "Assistant", staff: "Shop team", system: "Shop" };
@@ -26,9 +26,7 @@ export default function ChatThreadList() {
     try {
       setState({ kind: "ready", threads: await api<BuyerThreadSummary[]>("/api/buyer/threads") });
     } catch (err) {
-      // No buyer cookie yet means the visitor has not started any conversation.
-      if (err instanceof ApiError && err.status === 401) setState({ kind: "ready", threads: [] });
-      else setState({ kind: "error", message: err instanceof Error ? err.message : "Your conversations could not be loaded." });
+      setState({ kind: "error", message: err instanceof Error ? err.message : "Your conversations could not be loaded." });
     }
   }, []);
 

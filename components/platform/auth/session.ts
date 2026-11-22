@@ -17,7 +17,7 @@ export function useCurrentStaff(): StaffMe | null | undefined {
   useEffect(() => {
     let alive = true;
     const load = () =>
-      api<StaffMe>("/api/auth/me")
+      api<StaffMe | null>("/api/auth/me?optional=1")
         .then((m) => alive && setMe(m))
         .catch(() => alive && setMe(null));
     load();

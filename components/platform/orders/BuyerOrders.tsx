@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { ChevronRight, Package, RefreshCw } from "lucide-react";
 import { EmptyState } from "@/components/platform/ui";
-import { api, ApiError } from "@/lib/v2/client";
+import { api } from "@/lib/v2/client";
 import type { BuyerOrder } from "@/lib/v2/buyer-types";
 import { isInProgress, OrderStatusPill, shortDate } from "./orderStatus";
 
@@ -26,9 +26,7 @@ export default function BuyerOrders() {
     try {
       setState({ kind: "ready", orders: await api<BuyerOrder[]>("/api/buyer/orders") });
     } catch (err) {
-      // No buyer cookie yet means no conversation was ever started, so there cannot be orders.
-      if (err instanceof ApiError && err.status === 401) setState({ kind: "ready", orders: [] });
-      else setState({ kind: "error", message: err instanceof Error ? err.message : "Your orders could not be loaded." });
+      setState({ kind: "error", message: err instanceof Error ? err.message : "Your orders could not be loaded." });
     }
   }, []);
 

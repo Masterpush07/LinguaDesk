@@ -5,14 +5,15 @@ import { iso, loadThreadView, notFound, requireBuyer } from "@/lib/v2/buyer-api"
 import type { BuyerSelection, BuyerThreadSummary } from "@/lib/v2/buyer-types";
 import { newId } from "@/lib/v2/crypto";
 import { sanitizeSelection } from "@/lib/v2/selection";
+import { currentBuyerId } from "@/lib/v2/session";
 import { sellerBySlug } from "@/lib/v2/shop";
 
 const NEW_THREADS_PER_HOUR = 40;
 
-// Conversations that have at least one message, newest first.
+// Conversations that have at least one message, newest first. A visitor with no session has none, so this answers an empty list instead of an error.
 export async function GET() {
-  const auth = await requireBuyer();
-  if ("error" in auth) return auth.error;
+  const buyerId = await currentBuyerId();
+  if (!buyerId) return NextResponse.json([]);
   const rows = await db()`SELECT t.id, t.status, s.slug, s.shop_name, s.country, p.name AS product_name,
       lm.text AS last_text, lm.sender AS last_sender, lm.created_at AS last_at,
       (SELECT count(*)::int FROM thread_messages x WHERE x.thread_id = t.id AND x.sender IN ('staff', 'ai') AND x.created_at > t.buyer_read_at) AS unread
@@ -22,7 +23,7 @@ export async function GET() {
     JOIN LATERAL (
       SELECT text, sender, created_at FROM thread_messages WHERE thread_id = t.id ORDER BY created_at DESC LIMIT 1
     ) lm ON true
-    WHERE t.buyer_id = ${auth.buyerId}
+    WHERE t.buyer_id = ${buyerId}
     ORDER BY lm.created_at DESC
     LIMIT 100`;
   const threads = rows.map(
