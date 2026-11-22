@@ -24,13 +24,14 @@ const SECONDARY = [
 const FOCUS = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500";
 const SELECT = `h-9 shrink-0 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-700 ${FOCUS}`;
 
-export function Logo({ dark = false }: { dark?: boolean }) {
+// compact: on phones narrower than 460px only the icon shows, which frees room in the header for the language picker.
+export function Logo({ dark = false, compact = false }: { dark?: boolean; compact?: boolean }) {
   return (
     <Link href="/" className="flex shrink-0 items-center gap-2" data-testid="logo">
       <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-violet-600 via-indigo-600 to-cyan-500 text-white shadow-sm">
         <Globe2 className="h-4.5 w-4.5" aria-hidden="true" />
       </span>
-      <span className={`font-heading text-lg font-semibold tracking-tight ${dark ? "text-white" : "text-slate-900"}`}>LinguaDesk</span>
+      <span className={`font-heading text-lg font-semibold tracking-tight ${dark ? "text-white" : "text-slate-900"} ${compact ? "max-[460px]:sr-only" : ""}`}>LinguaDesk</span>
     </Link>
   );
 }
@@ -133,8 +134,8 @@ export default function CustomerHeader() {
 
   return (
     <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/85 backdrop-blur-xl" data-testid="customer-header">
-      <div className="mx-auto flex h-16 max-w-7xl items-center gap-4 px-4 sm:px-6 lg:px-8">
-        <Logo />
+      <div className="mx-auto flex h-16 max-w-7xl items-center gap-2 px-3 min-[360px]:px-4 max-[340px]:gap-1.5 sm:gap-4 sm:px-6 lg:px-8">
+        <Logo compact />
         <nav aria-label="Main" className="ml-2 hidden min-w-0 items-center gap-0.5 xl:flex">
           <Suspense fallback={<NavLinks pathname="" unread={unread} />}>
             <ActiveNavLinks unread={unread} />
@@ -148,7 +149,7 @@ export default function CustomerHeader() {
           <select
             id="lang-select"
             data-testid="language-select"
-            className={`${SELECT} hidden md:block`}
+            className={`${SELECT} max-w-[5.5rem] max-[340px]:max-w-[5rem] sm:max-w-none`}
             value={language}
             onChange={(e) => setLanguage(e.target.value as LangCode)}
           >
