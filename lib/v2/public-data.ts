@@ -157,3 +157,33 @@ export async function sellerDetail(slug: string) {
     faqs: faqs.map((f) => ({ q: f.q as string, a: f.a as string })),
   };
 }
+
+// One-row lookups for page titles and share previews, so rendering metadata stays cheap.
+export async function shopMeta(slug: string) {
+  const [r] = await db()`SELECT s.shop_name, s.tagline, s.about, s.country,
+      (SELECT p.image_url FROM products p WHERE p.seller_id = s.id AND p.active AND p.image_url IS NOT NULL ORDER BY p.created_at LIMIT 1) AS image_url
+    FROM sellers s WHERE s.slug = ${slug}`;
+  if (!r) return null;
+  return { name: r.shop_name as string, text: ((r.tagline as string) || (r.about as string) || "").trim(), country: r.country as string, imageUrl: (r.image_url as string | null) ?? null };
+}
+
+export async function productMeta(sellerSlug: string, id: string) {
+  const [r] = await db()`SELECT p.name, p.description, p.price_usd, p.image_url, s.shop_name
+    FROM products p JOIN sellers s ON s.id = p.seller_id
+    WHERE p.id = ${id} AND p.active AND s.slug = ${sellerSlug}`;
+  if (!r) return null;
+  return { name: r.name as string, description: r.description as string, priceUsd: Number(r.price_usd), imageUrl: (r.image_url as string | null) ?? null, shopName: r.shop_name as string };
+}
+
+// Every public page a search engine may list: shops and their active products.
+export async function sitemapEntries() {
+  const sql = db();
+  const [shops, products] = await Promise.all([
+    sql`SELECT slug, created_at FROM sellers ORDER BY created_at DESC LIMIT 1000`,
+    sql`SELECT p.id, p.updated_at, s.slug FROM products p JOIN sellers s ON s.id = p.seller_id WHERE p.active ORDER BY p.updated_at DESC LIMIT 5000`,
+  ]);
+  return {
+    shops: shops.map((r) => ({ slug: r.slug as string, at: new Date(r.created_at as string) })),
+    products: products.map((r) => ({ id: r.id as string, slug: r.slug as string, at: new Date(r.updated_at as string) })),
+  };
+}
