@@ -1,6 +1,7 @@
 // Server-only speech-to-text. Order of attempts: Groq Whisper large-v3, Groq Whisper large-v3-turbo, then Gemini audio understanding.
 // Groq is tried first because it returns the exact words and the detected language; Gemini is the safety net when Groq is down or rate limited.
 import { generateJson } from "@/lib/gemini";
+import { languageCode } from "@/lib/v2/languages";
 
 export type Transcript = { text: string; language: string | null; provider: "groq" | "gemini" };
 
@@ -9,12 +10,7 @@ const GROQ_MODELS = ["whisper-large-v3", "whisper-large-v3-turbo"];
 const GEMINI_MODELS = ["gemini-3.5-flash-lite", "gemini-3.1-flash-lite"];
 const NO_SPEECH_THRESHOLD = 0.6; // real speech scores about 0.001, silence about 0.7
 
-const NAME_TO_CODE: Record<string, string> = {
-  english: "en", spanish: "es", japanese: "ja", hindi: "hi", arabic: "ar", french: "fr", tamil: "ta",
-  portuguese: "pt", korean: "ko", chinese: "zh", kannada: "kn", german: "de", russian: "ru", italian: "it",
-  indonesian: "id", turkish: "tr", vietnamese: "vi", thai: "th", bengali: "bn", telugu: "te", urdu: "ur",
-};
-export const languageCode = (name: string | null | undefined) => (name ? (NAME_TO_CODE[name.toLowerCase()] ?? name.slice(0, 2).toLowerCase()) : null);
+export { languageCode };
 
 async function groqTranscribe(audio: Blob, filename: string, languageHint?: string): Promise<Transcript> {
   const key = process.env.GROQ_API_KEY;

@@ -9,7 +9,8 @@ import PushToggle from "@/components/platform/PushToggle";
 import SelectionChip from "./SelectionChip";
 import { usePrefs } from "@/components/platform/Prefs";
 import { LangBadge } from "@/components/platform/ui";
-import { connect, onConnection, onMessage, sendText, type Session } from "@/lib/nexconn-client";
+import { connect, onConnection, onMessage, onTyping, sendText, type Session } from "@/lib/nexconn-client";
+import { TYPING_SHOWN_MS } from "@/lib/v2/typing";
 import { LANGS } from "@/lib/platform/data";
 import type { LangCode } from "@/lib/platform/types";
 import { api, ApiError } from "@/lib/v2/client";
@@ -61,6 +62,7 @@ export default function BuyerChat({ slug }: { slug: string }) {
   const [reading, setReading] = useState<"buyer" | "english">("buyer");
   const [connected, setConnected] = useState<boolean | null>(null);
   const [awaiting, setAwaiting] = useState(false);
+  const [teamTyping, setTeamTyping] = useState(false);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [orderBusy, setOrderBusy] = useState<string | null>(null);
@@ -180,7 +182,18 @@ export default function BuyerChat({ slug }: { slug: string }) {
 
   useEffect(() => {
     if (phase !== "ready") return;
-    const offMessage = onMessage(() => refreshSoon());
+    let typingTimer: number | undefined;
+    const offTyping = onTyping((userId) => {
+      if (userId !== viewRef.current?.seller.nexconnUserId) return;
+      setTeamTyping(true);
+      window.clearTimeout(typingTimer);
+      typingTimer = window.setTimeout(() => setTeamTyping(false), TYPING_SHOWN_MS);
+    });
+    const offMessage = onMessage(() => {
+      window.clearTimeout(typingTimer);
+      setTeamTyping(false);
+      refreshSoon();
+    });
     const offConnection = onConnection((up) => setConnected(up));
     const onFocus = () => void refresh();
     const slow = window.setInterval(() => document.visibilityState === "visible" && void refresh(), SLOW_REFRESH_MS);
@@ -193,6 +206,8 @@ export default function BuyerChat({ slug }: { slug: string }) {
     window.addEventListener("pagehide", away);
     return () => {
       offMessage();
+      offTyping();
+      window.clearTimeout(typingTimer);
       offConnection();
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onVisibility);
@@ -528,6 +543,7 @@ export default function BuyerChat({ slug }: { slug: string }) {
           )}
 
           {typing && <TypingIndicator label={`${seller.assistantName} is typing`} />}
+          {teamTyping && !typing && <TypingIndicator label="The shop team is typing" />}
         </div>
       </div>
 

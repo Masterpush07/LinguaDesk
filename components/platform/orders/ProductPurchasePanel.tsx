@@ -2,8 +2,10 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { AlertCircle, CheckCircle2, MessageCircle, Minus, Plus, ShoppingBag } from "lucide-react";
 import { Price } from "@/components/platform/Prefs";
+import { api } from "@/lib/v2/client";
 
 const FOCUS = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2";
 
@@ -27,6 +29,9 @@ export default function ProductPurchasePanel({
   const [color, setColor] = useState(colors[0] ?? "");
   const [size, setSize] = useState(sizes[0] ?? "");
   const [qty, setQty] = useState(1);
+  const [buying, setBuying] = useState(false);
+  const [buyError, setBuyError] = useState<string | null>(null);
+  const router = useRouter();
   const out = stock === 0;
   const low = stock > 0 && stock <= 5;
   const chatHref = `/chat/${seller}?product=${productId}`;
@@ -35,6 +40,20 @@ export default function ProductPurchasePanel({
   if (color) orderParams.set("colour", color);
   if (size) orderParams.set("size", size);
   const orderHref = `/chat/${seller}?${orderParams.toString()}`;
+
+  // Starts the order without waiting for the shop; the chat then shows the order for the buyer to confirm with a delivery address.
+  async function buyNow() {
+    setBuying(true);
+    setBuyError(null);
+    try {
+      await api("/api/buyer/session", { method: "POST" });
+      await api("/api/buyer/orders/request", { method: "POST", json: { sellerSlug: seller, productId, qty, colour: color || undefined, size: size || undefined } });
+      router.push(`/chat/${seller}?product=${productId}`);
+    } catch (err) {
+      setBuyError(err instanceof Error ? err.message : "The order could not be started. Please try again.");
+      setBuying(false);
+    }
+  }
 
   return (
     <div className="space-y-6" data-testid="product-purchase-panel">
@@ -145,6 +164,17 @@ export default function ProductPurchasePanel({
       )}
 
       <div className="flex flex-col gap-3 sm:flex-row">
+        {!out && (
+          <button
+            type="button"
+            onClick={buyNow}
+            disabled={buying}
+            data-testid="product-buy-now"
+            className={`inline-flex items-center justify-center gap-2 rounded-full bg-emerald-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60 motion-reduce:transition-none ${FOCUS}`}
+          >
+            <ShoppingBag className="h-4 w-4" aria-hidden="true" /> {buying ? "Starting your order…" : "Buy now"}
+          </button>
+        )}
         <Link
           href={chatHref}
           data-testid="product-ask-about"
@@ -162,6 +192,16 @@ export default function ProductPurchasePanel({
           </Link>
         )}
       </div>
+      {buyError && (
+        <p role="alert" data-testid="product-buy-error" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          {buyError}
+        </p>
+      )}
+      {!out && (
+        <p className="text-xs text-slate-500" data-testid="product-buy-note">
+          Buy now does not need the shop to be online: you confirm your delivery address in the chat, then the shop packs the order and arranges payment with you. Nothing is charged here.
+        </p>
+      )}
       {out && (
         <p data-testid="product-out-of-stock-note" className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
           Ordering is paused because this item is sold out. You can still ask the shop when it will be back or if they can make one for you.

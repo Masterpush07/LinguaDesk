@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { iso } from "@/lib/v2/buyer-api";
+import { chatPath } from "@/lib/v2/seller-paths";
 
 // Server-only. A buyer's right to a copy of their data and to have it deleted. There are no accounts, so "the buyer" is the guest id in the cookie.
 // What is deleted: conversations and every message in them, uploaded photos, the delivery address, the review text, the return details,
@@ -64,7 +65,7 @@ export async function exportBuyerData(buyerId: string) {
     browsersWithAlerts: devices[0]?.n ?? 0,
     conversations: threads.map((t) => ({
       shop: t.shop_name,
-      shopLink: `/chat/${t.slug}`,
+      shopLink: chatPath(t.slug),
       status: t.status,
       startedAt: iso(t.created_at),
       messages: messages

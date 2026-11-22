@@ -1,6 +1,7 @@
 import { createHash, timingSafeEqual } from "crypto";
 import { NextResponse, type NextRequest } from "next/server";
 import { issueAccessToken } from "@/lib/nexconn-server";
+import { legacyEnabled, legacyOff } from "@/lib/legacy";
 import { setOwnerCookie } from "@/lib/owner-auth";
 import { clientIp, isLimited, recordEvent } from "@/lib/rate-limit";
 import { SHOP_ID, SHOP_NAME } from "@/lib/shop";
@@ -14,6 +15,7 @@ const WINDOW_MINUTES = 15;
 
 // Gives the shop owner a token for the shop's chat identity, guarded by a passcode.
 export async function POST(req: NextRequest) {
+  if (!legacyEnabled()) return legacyOff();
   const expected = process.env.OWNER_PASSCODE;
   if (!expected) {
     console.error("OWNER_PASSCODE is not set");
@@ -21,7 +23,7 @@ export async function POST(req: NextRequest) {
   }
 
   const ipKey = `login-fail:${clientIp(req.headers)}`;
-  if ((await isLimited(ipKey, PER_IP_FAILURES, WINDOW_MINUTES)) || (await isLimited("login-fail:all", GLOBAL_FAILURES, WINDOW_MINUTES))) {
+  if ((await isLimited(ipKey, PER_IP_FAILURES, WINDOW_MINUTES, { failClosed: true })) || (await isLimited("login-fail:all", GLOBAL_FAILURES, WINDOW_MINUTES, { failClosed: true }))) {
     return NextResponse.json({ error: "Too many wrong attempts. Try again in 15 minutes." }, { status: 429 });
   }
 

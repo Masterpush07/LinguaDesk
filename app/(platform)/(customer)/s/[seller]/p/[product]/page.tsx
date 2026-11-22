@@ -4,8 +4,8 @@ import SiteFooter from "@/components/platform/SiteFooter";
 import DynamicMarker from "@/components/platform/public/DynamicMarker";
 import ProductView from "@/components/platform/public/ProductView";
 import { PageFallback } from "@/components/platform/ui";
-import { clip } from "@/lib/site";
 import { productMeta } from "@/lib/v2/public-data";
+import { productMetadata } from "@/lib/v2/seo-metadata";
 
 type Params = Promise<{ seller: string; product: string }>;
 
@@ -14,15 +14,7 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   const { seller, product } = await params;
   const item = await productMeta(seller, product).catch(() => null);
   if (!item) return { title: "Product · LinguaDesk" };
-  const title = `${item.name} · ${item.shopName} · LinguaDesk`;
-  const price = `USD ${item.priceUsd.toFixed(2)}`;
-  const description = clip(item.description ? `${item.description} ${price}.` : `${item.name} from ${item.shopName}. ${price}.`);
-  return {
-    title,
-    description,
-    openGraph: { title, description, type: "website", siteName: "LinguaDesk", ...(item.imageUrl ? { images: [item.imageUrl] } : {}) },
-    twitter: { card: item.imageUrl ? "summary_large_image" : "summary", title, description },
-  };
+  return productMetadata(item);
 }
 
 export default function ProductPage({ params }: { params: Params }) {

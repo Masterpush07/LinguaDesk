@@ -24,6 +24,7 @@ export async function POST(req: NextRequest, ctx: Ctx) {
       translated: rendered.translated,
       backTranslated: rendered.backTranslated,
       numbersOk: rendered.numbersOk,
+      numbers: rendered.numbers,
       language: rendered.sameLanguage ? "English" : (thread.language ?? "the buyer's language"),
       sameLanguage: rendered.sameLanguage,
     };

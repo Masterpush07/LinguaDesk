@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { addSystemMessage, notFound, requireBuyer } from "@/lib/v2/buyer-api";
+import { releaseReservedStock } from "@/lib/v2/inventory";
 import { notifyShop } from "@/lib/v2/notifications";
 import { Check, readJson } from "@/lib/v2/seller-api";
 
@@ -28,6 +29,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   const { seller_id: sellerId, thread_id: orderThread } = claimed[0];
+  await releaseReservedStock(id); // a failure here leaves the stock low, never high, and the shop can correct it in Inventory
   let threadId: string | null = orderThread ?? null;
   if (!threadId) {
     const [t] = await sql`SELECT id FROM threads WHERE seller_id = ${sellerId} AND buyer_id = ${auth.buyerId}`;

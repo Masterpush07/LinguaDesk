@@ -66,7 +66,7 @@ export default async function HomePage() {
               Open a shop
             </Link>
             <Link href="/demo" data-testid="home-hero-demo" className={`rounded-full px-6 py-3 text-sm font-semibold text-cyan-200 transition hover:bg-white/10 motion-reduce:transition-none ${CTA_FOCUS}`}>
-              Watch the live demo
+              Watch the guided walkthrough
             </Link>
           </div>
         </div>

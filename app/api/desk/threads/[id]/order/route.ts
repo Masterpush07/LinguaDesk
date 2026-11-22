@@ -71,7 +71,7 @@ export async function POST(req: NextRequest, ctx: Ctx) {
 
   const sql = db();
   await sql`INSERT INTO orders_v2 (id, seller_id, thread_id, buyer_id, card, total, status)
-    VALUES (${card.id}, ${staff.sellerId}, ${id}, ${thread.buyer.id}, ${JSON.stringify(card)}::jsonb, ${card.total}, 'proposed')`;
+    VALUES (${card.id}, ${staff.sellerId}, ${id}, ${thread.buyer.id}, ${JSON.stringify({ ...card, reserve: priced.lines.map((l) => ({ id: l.id, qty: l.qty })) })}::jsonb, ${card.total}, 'proposed')`;
   await sql`INSERT INTO thread_messages (id, thread_id, sender, staff_id, text, text_en, lang, numbers_verified, order_id)
     VALUES (${messageId}, ${id}, 'staff', ${staff.id}, ${summary}, ${summary === summaryEn ? null : summaryEn}, ${thread.language}, true, ${card.id})
     ON CONFLICT DO NOTHING`;

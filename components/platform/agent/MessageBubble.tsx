@@ -1,6 +1,6 @@
 "use client";
 
-import { Languages, ShieldCheck, Sparkles, Volume2 } from "lucide-react";
+import { Languages, ShieldCheck, Sparkles, TriangleAlert, Volume2 } from "lucide-react";
 import { formatClockTime, formatUsd } from "@/lib/v2/desk-client";
 import type { DeskMessage } from "@/lib/v2/desk-types";
 
@@ -95,6 +95,18 @@ export default function MessageBubble({ message: m, buyerLanguage, swapped }: Pr
             <span data-testid="numbers-verified" className="inline-flex items-center gap-1 text-emerald-200">
               <ShieldCheck className="h-3 w-3" aria-hidden="true" />
               Numbers verified
+            </span>
+          )}
+          {m.numbersCheck === "ok" && (
+            <span data-testid="numbers-match" title="Every number in the buyer's message appears in the English reading" className="inline-flex items-center gap-1 text-emerald-300">
+              <ShieldCheck className="h-3 w-3" aria-hidden="true" />
+              Numbers match the original
+            </span>
+          )}
+          {m.numbersCheck === "mismatch" && (
+            <span data-testid="numbers-mismatch" role="alert" className="inline-flex items-center gap-1 rounded bg-amber-500/20 px-1.5 py-0.5 font-medium text-amber-300">
+              <TriangleAlert className="h-3 w-3" aria-hidden="true" />
+              A number differs from the original: check it before quoting
             </span>
           )}
         </div>

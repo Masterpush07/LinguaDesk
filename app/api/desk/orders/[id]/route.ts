@@ -4,6 +4,7 @@ import { sendDirectText } from "@/lib/nexconn-server";
 import { newId } from "@/lib/v2/crypto";
 import { requireStaff } from "@/lib/v2/guard";
 import { alertBuyer } from "@/lib/v2/buyer-alert";
+import { releaseReservedStock } from "@/lib/v2/inventory";
 import { Check, fail, invalidBody, readJson } from "@/lib/v2/seller-api";
 import { checkTransition, courtesyText, orderDto } from "@/lib/v2/seller-orders";
 import { ORDER_STATUSES, type OrderStatus } from "@/lib/v2/seller-types";
@@ -43,6 +44,7 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
     WHERE id = ${id} AND seller_id = ${staff.sellerId} AND status = ${from}
     RETURNING id, status, total, card, courier, tracking, created_at, confirmed_at, buyer_id, thread_id, delivery, paid_at`;
   if (!row) return fail("This order was changed by someone else. Reload and try again.", 409);
+  if (to === "cancelled" && from !== "cancelled") await releaseReservedStock(id);
 
   let notified: boolean | undefined;
   if (to !== from && (to === "shipped" || to === "delivered")) {

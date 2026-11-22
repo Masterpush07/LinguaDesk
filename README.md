@@ -133,7 +133,7 @@ The AI is driven by a Nexconn webhook, which needs a public URL. In the Nexconn 
 
 Useful scripts:
 
-- `npm run lint`, `npm run build`
+- `npm run lint`, `npm run build`, `npm test` (unit tests, see Quality checks)
 - `scripts/seed-demo.mjs` creates four demo shops through the public sign-up and desk APIs, as a real seller would.
 - `scripts/seed-lotus.mjs` copies the original Lotus Handloom demo into the marketplace as a normal shop (`--dry` previews it).
 - `scripts/reset-demo.mjs --yes` clears the conversations, messages and orders of the original single-shop demo only. It does not touch the marketplace tables.
@@ -162,6 +162,8 @@ lib/
   number-check.ts            deterministic number verification
   catalog.ts                 order pricing and the order card format
   rate-limit.ts              per-visitor limits kept in Postgres
+proxy.ts                     permanent redirects for retired shop URLs (see Renaming a shop)
+tests/                       unit tests (Node's built-in runner) and the loader that lets them import the app's TypeScript
 scripts/                     migrations, seeds and the original demo reset
 ```
 
@@ -176,7 +178,69 @@ scripts/                     migrations, seeds and the original demo reset
 
 ## Quality checks
 
-Each feature was verified end to end during development: type-check, lint and a production build, plus scripted API checks (several hundred in total) and browser passes for the screens, run against the real database and Nexconn. Those scripts were temporary, so the repository does not contain an automated test suite.
+Each feature was verified end to end during development: type-check, lint and a production build, plus scripted API checks (several hundred in total) and browser passes for the screens, run against the real database and Nexconn. Those scripts were temporary.
+
+`npm test` runs a committed suite with Node's built-in test runner (needs Node 22.7 or newer, unlike the app itself). The suite runs the app's real route handlers and its real SQL against an in-memory Postgres (PGlite, a dev-only dependency) built from the production migration scripts, so it needs no network and cannot reach a real database. It covers the slug aliases and the redirect proxy in every state of a rename, staff sign-in and recovery, sign-up and settings name rules, the shop lookup used for new chats, the sitemap, the SEO tags, and the exact SQL printed below. It does not cover the rest of the app, and it does not exercise Neon's own driver or Nexconn.
+
+## Renaming a shop (URL aliases)
+
+Shops keep their slug when their display name changes. When a slug itself has to change, add the pair to `SLUG_ALIASES` in `lib/v2/slug-aliases.ts` and its URL shapes to the matcher in `proxy.ts` (a test fails if the two disagree). Current pair: `barbara` and `homely-kitchen` (display name Homely Kitchen).
+
+**Status: the application code is ready; the shop record has not been renamed.** The two slugs are two addresses for one shop, and whichever one the database holds is the real one. Until the statement below is run, `/s/barbara` serves the shop and `/s/homely-kitchen` redirects to it.
+
+What the code does, in every state of the database (`proxy.ts` runs only on `/s/<slug>`, `/s/<slug>/p/<id>` and `/chat/<slug>` for these two slugs, and asks the database which of the two exists):
+
+| The database holds | Requests for the other slug | Requests for the slug it holds |
+|---|---|---|
+| only `homely-kitchen` | HTTP 308 to the same path under `homely-kitchen` | served |
+| only `barbara` | HTTP 308 to the same path under `barbara` | served |
+| both (two different shops) | not redirected; a `SLUG ALIAS CONFLICT` warning is written to the server log | served, each by its own shop |
+| neither | not redirected: the normal not-found page | not found |
+| the lookup fails | not redirected; the failure is logged | served as usual |
+
+- The product id and the whole query string are kept. Other shops, look-alikes (`/s/barbara-2`), other capitalisations (`/s/Barbara`) and other paths are never touched, and never cost a database query.
+- The 308 carries `Cache-Control: no-store`, so a browser does not remember it and a rename or its rollback takes effect on the next visit. Every request for the two slugs' URLs, including the canonical ones, costs one small indexed query. That check is cut off after 2 seconds: if the database is slow or down, the request simply continues to the normal page (and the failure is logged) instead of waiting.
+- Sign-in and recovery accept the shop name or either slug, but the other slug of the pair only counts while the typed slug is not a shop of its own, so an alias can never lead into a different shop. Staff sessions hold only the staff id, so they stay valid.
+- A new chat request that carries either slug is resolved to the shop that exists (`sellerBySlug`); a shop that really owns the slug always wins.
+- A new sign-up, or another shop renaming itself in Settings, cannot use a name that matches another shop's name or either slug of the pair. Only the shop that holds one of the two slugs may use either name. This also closes an older gap: sign-up used to allow two shops with the same display name.
+- The sitemap, share link, QR code, notification links, privacy export and the canonical and share-preview tags are all built from the slug stored on the shop record, so they follow the record in either direction.
+
+Order of steps (nothing here is done by the code):
+
+1. Deploy this code. Nothing changes for visitors except that `/s/homely-kitchen` now redirects to `/s/barbara`.
+2. If the shop owner already changed the display name in Settings, the statement below matches nothing (its guard is `shop_name = 'barbara'`); adjust the guard to the current name first. Nothing is changed if the guard does not match.
+3. Run the statement below once against the production database, after approval.
+4. Check with `curl -sI`: `/s/barbara`, `/s/barbara/p/<an id>` and `/chat/barbara?x=1` return `308` with the new `location`; `/s/homely-kitchen` returns `200`; `/sitemap.xml` lists `/s/homely-kitchen` and not `/s/barbara`; the page title is `Homely Kitchen · LinguaDesk`; the owner can sign in with `Homely Kitchen` and with `barbara`; the server log shows no `SLUG ALIAS CONFLICT`.
+
+```sql
+UPDATE sellers
+SET slug = 'homely-kitchen', shop_name = 'Homely Kitchen',
+    tagline = 'Fresh homemade food, breakfast and evening snacks.', agent_name = 'Homely Kitchen Assistant'
+WHERE slug = 'barbara' AND shop_name = 'barbara'
+RETURNING slug, shop_name, tagline, agent_name; -- expect exactly 1 row
+```
+
+It changes four columns of one row. The seller id, owner and staff records, passcodes, the Nexconn user id and every related row (they all point at the seller id) are not touched. The unique index on `slug` makes it fail, changing nothing, if `homely-kitchen` is already taken.
+
+Rollback (no code change or redeploy is needed: the proxy follows the database in both directions, so as soon as `barbara` exists again, `/s/homely-kitchen` redirects to it, including links that were already shared):
+
+```sql
+UPDATE sellers
+SET slug = 'barbara', shop_name = 'barbara', tagline = 'We sell home food', agent_name = ''
+WHERE slug = 'homely-kitchen' AND shop_name = 'Homely Kitchen'
+RETURNING slug, shop_name, tagline, agent_name; -- expect exactly 1 row
+```
+
+After a rollback the new links keep working, because they redirect to the old address. Check with `curl -sI`: `/s/homely-kitchen`, `/s/homely-kitchen/p/<an id>` and `/chat/homely-kitchen?x=1` return `308` with the old `location` and the query kept; `/s/barbara` returns `200`; `/sitemap.xml` lists `/s/barbara` and not `/s/homely-kitchen`; the owner can sign in with `barbara` and with `Homely Kitchen`; the server log shows no `SLUG ALIAS CONFLICT`.
+
+If the log shows `SLUG ALIAS CONFLICT`, two different shops hold the two slugs, which the pair is never meant to allow, so the proxy redirects nothing in either direction. Find them with `SELECT id, slug, shop_name, owner_name, created_at FROM sellers WHERE slug IN ('barbara', 'homely-kitchen');`, decide which one is the real shop, and rename or remove the other one. Do not delete a shop that has conversations or orders: every related row is deleted with it.
+
+Caching and deployment notes:
+
+- Shop pages and the sitemap are rendered per request, so the new name and address appear immediately. Search engines treat a 308 as permanent and will move their index over time; link previews already cached by chat apps and social sites keep the old title until they refresh.
+- `proxy.ts` makes one small indexed query (`SELECT slug FROM sellers WHERE slug = ANY(...)`) on each request for one of the six URL shapes above, and on no other request.
+- The shop's chat identity name in Nexconn is sent when a desk token is issued. Whether Nexconn updates a stored name for an existing user is not verified; the app never shows that name.
+- `npm run build` prints `shop info read failed ... This occurred at route "/api/shop"`. It is harmless and was there before the rename work: Next starts the old single-shop route during the build to see whether it can be static, notices the database call, abandons the attempt and marks the route dynamic. No query is sent and the build still succeeds, with or without a reachable database.
 
 ## Honest limits
 
@@ -187,7 +251,7 @@ Each feature was verified end to end during development: type-check, lint and a 
 - The first time a message is read aloud with Gemini speech takes several seconds; later plays are instant because the audio is cached.
 - Browser pop-ups need the buyer's permission and a secure (https) address. Email replies need the buyer to confirm their address.
 - Buyers are guests identified by a cookie. Clearing site data starts a new buyer unless they used the continue-on-another-device link first.
-- Not built yet: stock alerts, report and block a buyer, installable app (PWA), and a committed automated test suite.
+- Not built yet: stock alerts, report and block a buyer, installable app (PWA), and automated tests beyond the small unit suite.
 
 ## License
 

@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import type { Faq, Product, ShopData } from "@/lib/shop-data";
 import type { WeekHours } from "@/lib/v2/hours";
+import { slugCandidates } from "@/lib/v2/slug-aliases";
 
 // Server-only. Builds the same ShopData shape the original app uses, so buildKnowledge() and priceOrder() work per seller unchanged.
 const EMPTY_SHIPPING: ShopData["shipping"] = { freeAbove: 0, fee: 0, worldwideDays: "", domesticDays: "", notes: "" };
@@ -35,8 +36,9 @@ export async function sellerByNexconnId(nexconnUserId: string): Promise<SellerRo
 }
 
 export async function sellerBySlug(slug: string): Promise<SellerRow | null> {
+  // A retired slug (lib/v2/slug-aliases.ts) finds the renamed shop, but a shop that really owns the slug always wins.
   const [row] = await db()`SELECT id, slug, shop_name, owner_name, country, tagline, about, languages, nexconn_user_id, hours, response_target_min, tone, agent_name, business_hours, timezone, away_message
-    FROM sellers WHERE slug = ${slug}`;
+    FROM sellers WHERE slug = ANY(${slugCandidates(slug)}) ORDER BY (slug = ${slug}) DESC LIMIT 1`;
   return (row as SellerRow | undefined) ?? null;
 }
 

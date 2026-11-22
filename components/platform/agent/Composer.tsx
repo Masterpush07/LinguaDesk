@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { Check, Command, Info, Mic, RotateCcw, Send, ShieldCheck, Sparkles, TriangleAlert, Undo2 } from "lucide-react";
 import QuickReplyPalette, { type CannedReply } from "@/components/platform/agent/QuickReplyPalette";
 import VoiceInput from "@/components/platform/voice/VoiceInput";
 import { focusRing } from "@/components/platform/agent/desk-ui";
 import { api, ApiError, type StaffMe } from "@/lib/v2/client";
+import { sendTyping } from "@/lib/nexconn-client";
+import { typingThrottle } from "@/lib/v2/typing";
 import type { PreviewResult, ThreadHead } from "@/lib/v2/desk-types";
 
 type Props = {
@@ -35,7 +37,8 @@ export default function Composer({ thread, staff, drafts, onSent, onReopen }: Pr
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [voiceOpen, setVoiceOpen] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-
+  const buyerId = thread.buyer.id;
+  const notifyTyping = useMemo(() => typingThrottle(() => sendTyping(buyerId)), [buyerId]);
   const trimmed = draft.trim();
   const resolved = thread.status === "resolved";
   const foreign = !resolved && staff.role !== "owner" && thread.assignedStaff !== null && thread.assignedStaff.id !== staff.id;
@@ -79,6 +82,7 @@ export default function Composer({ thread, staff, drafts, onSent, onReopen }: Pr
     drafts.current.set(id, value);
     setFailure(null);
     setSentNote(null);
+    if (active && value.trim() !== "") notifyTyping();
   }
 
   async function send(sendOriginal: boolean) {
@@ -283,14 +287,19 @@ export default function Composer({ thread, staff, drafts, onSent, onReopen }: Pr
             </div>
             {ready.numbersOk ? (
               <p data-testid="numbers-verified-ok" className="flex items-center gap-1.5 text-xs font-medium text-emerald-300">
-                <Check className="h-3.5 w-3.5" aria-hidden="true" /> Numbers verified
+                <Check className="h-3.5 w-3.5" aria-hidden="true" /> Numbers verified{ready.numbers && ready.numbers.checked.length > 0 ? `: ${ready.numbers.checked.join(", ")} kept exactly` : ""}
               </p>
             ) : (
               <div data-testid="numbers-warning" role="alert" className="rounded-lg bg-amber-400/10 p-2 ring-1 ring-amber-400/30">
                 <p className="flex items-center gap-1.5 text-xs font-semibold text-amber-300">
                   <TriangleAlert className="h-3.5 w-3.5" aria-hidden="true" /> The translation changed a number
                 </p>
-                <p className="mt-0.5 text-xs text-amber-200">Sending is off. Reword the message, or retry the translation.</p>
+                <p className="mt-0.5 text-xs text-amber-200">
+                  {ready.numbers && (ready.numbers.missing.length > 0 || ready.numbers.added.length > 0)
+                    ? `${ready.numbers.missing.length > 0 ? `Lost: ${ready.numbers.missing.join(", ")}. ` : ""}${ready.numbers.added.length > 0 ? `Added: ${ready.numbers.added.join(", ")}. ` : ""}`
+                    : ""}
+                  Sending is off. Reword the message, or retry the translation.
+                </p>
                 <button
                   type="button"
                   onClick={() => {

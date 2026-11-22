@@ -30,6 +30,8 @@ const nextConfig: NextConfig = {
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           { key: "Permissions-Policy", value: "camera=(), microphone=(self), geolocation=()" }, // the microphone is needed for voice messages on this site only
           { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" },
+          // A script-src policy needs per-request nonces, which this app's prerendered pages do not have yet; these directives are safe without one.
+          { key: "Content-Security-Policy", value: "frame-ancestors 'none'; base-uri 'self'; object-src 'none'" },
         ],
       },
       {

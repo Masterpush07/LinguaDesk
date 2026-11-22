@@ -4,6 +4,7 @@ import { isLimited, recordEvent } from "@/lib/rate-limit";
 import { hashPasscode, verifyPasscode } from "@/lib/v2/crypto";
 import { requireStaff } from "@/lib/v2/guard";
 import { fail, invalidBody, readJson } from "@/lib/v2/seller-api";
+import { setStaffCookie } from "@/lib/v2/session";
 
 const FAILURES = 8;
 const WINDOW_MINUTES = 15;
@@ -21,7 +22,7 @@ export async function POST(req: NextRequest) {
   if (next === current) return fail("The new passcode must be different from the current passcode.");
 
   const key = `v2-passcode-fail:${auth.staff.id}`;
-  if (await isLimited(key, FAILURES, WINDOW_MINUTES)) {
+  if (await isLimited(key, FAILURES, WINDOW_MINUTES, { failClosed: true })) {
     return fail("Too many failed attempts. Try again in 15 minutes.", 429);
   }
 
@@ -33,5 +34,6 @@ export async function POST(req: NextRequest) {
   }
 
   await sql`UPDATE staff SET passcode_hash = ${await hashPasscode(next)} WHERE id = ${auth.staff.id}`;
+  await setStaffCookie(auth.staff.id); // the session of this device continues; every other one is signed out
   return NextResponse.json({ ok: true });
 }

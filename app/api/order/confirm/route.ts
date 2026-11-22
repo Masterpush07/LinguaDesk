@@ -4,12 +4,14 @@ import { db } from "@/lib/db";
 import { sendDirectText } from "@/lib/nexconn-server";
 import { CUSTOMER_ID } from "@/lib/owner-auth";
 import { SHOP_ID } from "@/lib/shop";
+import { legacyEnabled, legacyOff } from "@/lib/legacy";
 
 const ORDER_ID = /^[0-9a-f-]{36}$/;
 
 // The customer taps "Confirm order" on a card. Only someone holding the card's random ID can confirm it,
 // and a second tap does nothing, so the owner is alerted exactly once.
 export async function POST(req: NextRequest) {
+  if (!legacyEnabled()) return legacyOff();
   const body = (await req.json().catch(() => null)) as {
     customerId?: unknown;
     orderId?: unknown;

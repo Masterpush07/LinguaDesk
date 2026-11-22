@@ -5,6 +5,7 @@ import { onlyKnownNumbers } from "@/lib/number-check";
 import { SHOP_ID } from "@/lib/shop";
 import { buildKnowledge } from "@/lib/shop-data";
 import { getShop } from "@/lib/shop-store";
+import { AI_DEADLINE_MS, errorText, withDeadline } from "@/lib/v2/webhook-guard";
 
 type WebhookMessage = {
   userId: string;
@@ -34,22 +35,22 @@ function textOf(m: WebhookMessage): string | null {
 }
 
 // Runs after the webhook has already been acknowledged, so it may take longer than Nexconn's 5s timeout.
+// Duplicates are caught per customer message (its stored ID), so a crash before the message is stored never blocks a retry.
 export async function handleEvent(event: WebhookEvent) {
   if (event.type !== "message:send") return;
 
-  // Nexconn retries deliveries; only the first insert of an event ID gets to proceed.
-  const claimed =
-    await db()`INSERT INTO webhook_events (id) VALUES (${event.id}) ON CONFLICT DO NOTHING RETURNING id`;
-  if (claimed.length === 0) return;
-
   for (const m of event.data) {
-    if (m.channelType !== DIRECT_CHANNEL || m.os === "Server") continue; // server-sent messages are stored when we send them
-    const text = textOf(m);
-    if (!text) continue;
-    if (m.userId === SHOP_ID)
-      await recordOwnerMessage(m.channelId, m.messageId, text);
-    else if (m.channelId === SHOP_ID)
-      await answerCustomer(m.userId, m.messageId, text);
+    try {
+      if (!m || m.channelType !== DIRECT_CHANNEL || m.os === "Server") continue; // server-sent messages are stored when we send them
+      const text = textOf(m);
+      if (!text) continue;
+      if (m.userId === SHOP_ID)
+        await recordOwnerMessage(m.channelId, m.messageId, text);
+      else if (m.channelId === SHOP_ID)
+        await answerCustomer(m.userId, m.messageId, text);
+    } catch (err) {
+      console.error(`demo shop message failed event=${event.id} message=${m?.messageId}:`, errorText(err));
+    }
   }
 }
 
@@ -76,6 +77,48 @@ async function answerCustomer(
 ) {
   const sql = db();
   await touchConversation(customerId, text);
+  // The last few messages let the AI understand follow-ups like "and in blue?". The current message is not stored yet.
+  const recent = await sql`SELECT sender, text, text_en FROM messages
+    WHERE customer_id = ${customerId} ORDER BY created_at DESC LIMIT 8`;
+
+  // Stored before anything slow runs: it can no longer be lost, and a second delivery of it stops here.
+  const stored = await sql`INSERT INTO messages (id, customer_id, sender, text) VALUES (${messageId}, ${customerId}, 'customer', ${text}) ON CONFLICT DO NOTHING RETURNING id`;
+  if (stored.length === 0) {
+    console.warn(`duplicate customer message ignored message=${messageId}`);
+    return;
+  }
+  let answered = false;
+  try {
+    await respond(customerId, messageId, text, recent, () => (answered = true));
+  } catch (err) {
+    console.error(`demo shop message processing failed message=${messageId}:`, errorText(err));
+    // Hand over to the owner and tell the customer someone will reply, so the chat is never left silent.
+    await sql`UPDATE conversations SET status = 'waiting', summary = ${text} WHERE customer_id = ${customerId} AND status = 'ai'`.catch((e) => console.error("recovery hand-over failed:", errorText(e)));
+    if (!answered) await sendAndStore(customerId, FALLBACK_ANSWER).catch((e) => console.error("fallback reply failed:", errorText(e)));
+  }
+}
+
+// The customer's view reads the database, so the answer is stored even when Nexconn cannot deliver it right now.
+async function sendAndStore(customerId: string, answer: string) {
+  let id: string;
+  try {
+    const sent = await sendDirectText(SHOP_ID, customerId, answer, { ai: true });
+    id = sent.messageIds?.[0]?.messageId ?? crypto.randomUUID();
+  } catch (err) {
+    console.error("reply not delivered through Nexconn, stored for the customer's view:", errorText(err));
+    id = crypto.randomUUID();
+  }
+  await db()`INSERT INTO messages (id, customer_id, sender, text) VALUES (${id}, ${customerId}, 'ai', ${answer}) ON CONFLICT DO NOTHING`;
+}
+
+async function respond(
+  customerId: string,
+  messageId: string,
+  text: string,
+  recent: Record<string, unknown>[],
+  markAnswered: () => void,
+) {
+  const sql = db();
   const [conversation] = await sql`SELECT status,
     (SELECT (EXTRACT(EPOCH FROM now() - max(created_at)) / 60)::float8 FROM messages
       WHERE customer_id = ${customerId} AND sender = 'owner') AS owner_idle_min
@@ -83,23 +126,20 @@ async function answerCustomer(
 
   // One AI call gives the answer, the English text for the owner and the handoff decision.
   const kb = buildKnowledge(await getShop());
-  // The last few messages let the AI understand follow-ups like "and in blue?". The current message is not stored yet.
-  const recent = await sql`SELECT sender, text, text_en FROM messages
-    WHERE customer_id = ${customerId} ORDER BY created_at DESC LIMIT 8`;
-  const history: HistoryItem[] = recent.reverse().map((r) => ({
+  const history: HistoryItem[] = [...recent].reverse().map((r) => ({
     from:
       r.sender === "customer"
         ? "customer"
         : r.sender === "owner"
           ? "shop_owner"
           : "shop_ai",
-    text: r.text_en ?? r.text,
+    text: (r.text_en ?? r.text) as string,
   }));
   let reply: BotReply | null = null;
   try {
-    reply = await generateReply(text, { kb, history });
+    reply = await withDeadline(generateReply(text, { kb, history }), AI_DEADLINE_MS, "AI reply");
   } catch (err) {
-    console.error("AI reply failed:", err instanceof Error ? err.message : err);
+    console.error(`AI reply failed message=${messageId}:`, errorText(err));
   }
 
   // A price or date that is neither in the shop info, the customer's message nor something the shop already said never reaches the customer.
@@ -116,8 +156,7 @@ async function answerCustomer(
     };
   }
 
-  await sql`INSERT INTO messages (id, customer_id, sender, text, text_en)
-    VALUES (${messageId}, ${customerId}, 'customer', ${text}, ${reply?.customer_text_en ?? null}) ON CONFLICT DO NOTHING`;
+  await sql`UPDATE messages SET text_en = ${reply?.customer_text_en ?? null} WHERE id = ${messageId}`;
   if (reply)
     await sql`UPDATE conversations SET language = ${reply.customer_language} WHERE customer_id = ${customerId}`;
 
@@ -138,8 +177,6 @@ async function answerCustomer(
     await sql`UPDATE conversations SET status = 'waiting', summary = ${reply?.owner_summary ?? text} WHERE customer_id = ${customerId}`;
   }
 
-  const answer = reply?.answer ?? FALLBACK_ANSWER;
-  const sent = await sendDirectText(SHOP_ID, customerId, answer, { ai: true });
-  const aiMessageId = sent.messageIds?.[0]?.messageId ?? crypto.randomUUID();
-  await sql`INSERT INTO messages (id, customer_id, sender, text) VALUES (${aiMessageId}, ${customerId}, 'ai', ${answer}) ON CONFLICT DO NOTHING`;
+  markAnswered(); // from here a failure must not send a second reply
+  await sendAndStore(customerId, reply?.answer ?? FALLBACK_ANSWER);
 }

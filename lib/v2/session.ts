@@ -1,3 +1,4 @@
+import { createHash } from "crypto";
 import { cookies } from "next/headers";
 import { db } from "@/lib/db";
 import { signToken, verifyToken } from "@/lib/v2/crypto";
@@ -27,8 +28,13 @@ const cookieOptions = (maxAge: number) => ({
   maxAge,
 });
 
+// Changes whenever the passcode does (every hash has a fresh salt), so a passcode change or recovery signs out every other device.
+const stamp = (passcodeHash: string) => createHash("sha256").update(passcodeHash).digest("base64url").slice(0, 16);
+
 export async function setStaffCookie(staffId: string) {
-  (await cookies()).set(STAFF_COOKIE, signToken({ s: staffId }, STAFF_MAX_AGE), cookieOptions(STAFF_MAX_AGE));
+  const [row] = await db()`SELECT passcode_hash FROM staff WHERE id = ${staffId}`;
+  if (!row) throw new Error("Cannot start a session for an unknown staff member");
+  (await cookies()).set(STAFF_COOKIE, signToken({ s: staffId, v: stamp(row.passcode_hash as string) }, STAFF_MAX_AGE), cookieOptions(STAFF_MAX_AGE));
 }
 export async function clearStaffCookie() {
   // Cleared with the same attributes it was set with, so no browser treats this as a different cookie and keeps the session.
@@ -37,12 +43,12 @@ export async function clearStaffCookie() {
 
 // Reads the signed cookie, then loads the live row, so removed staff or edited roles take effect immediately.
 export async function currentStaff(): Promise<Staff | null> {
-  const token = verifyToken<{ s: string }>((await cookies()).get(STAFF_COOKIE)?.value);
+  const token = verifyToken<{ s: string; v?: string }>((await cookies()).get(STAFF_COOKIE)?.value);
   if (!token?.s) return null;
-  const [row] = await db()`SELECT st.id, st.seller_id, st.name, st.role, st.languages,
+  const [row] = await db()`SELECT st.id, st.seller_id, st.name, st.role, st.languages, st.passcode_hash,
       s.slug, s.shop_name, s.nexconn_user_id
     FROM staff st JOIN sellers s ON s.id = st.seller_id WHERE st.id = ${token.s}`;
-  if (!row) return null;
+  if (!row || token.v !== stamp(row.passcode_hash as string)) return null;
   return {
     id: row.id,
     sellerId: row.seller_id,

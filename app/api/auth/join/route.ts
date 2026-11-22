@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
   if (passcode.length < 8) return NextResponse.json({ error: "Choose a passcode of at least 8 characters." }, { status: 400 });
 
   const ipKey = `v2-join-fail:${clientIp(req.headers)}`;
-  if (await isLimited(ipKey, PER_IP_FAILURES, 15)) return NextResponse.json({ error: "Too many attempts. Try again in 15 minutes." }, { status: 429 });
+  if (await isLimited(ipKey, PER_IP_FAILURES, 15, { failClosed: true })) return NextResponse.json({ error: "Too many attempts. Try again in 15 minutes." }, { status: 429 });
 
   const sql = db();
   const staffId = newId("stf");

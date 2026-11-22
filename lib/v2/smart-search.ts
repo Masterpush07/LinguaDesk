@@ -2,6 +2,8 @@ import { db } from "@/lib/db";
 import { generateJson } from "@/lib/gemini";
 import { groqJson } from "@/lib/groq";
 import { listSellers, mapProduct, type PublicSellerSummary } from "@/lib/v2/public-data";
+import { countryAliases, normalizeCountry } from "@/lib/v2/country";
+import { unlistedSlugs } from "@/lib/v2/visibility";
 
 // Server-only. "Smart" marketplace search: a sentence in any language becomes plain filters, then the filters run against the real catalogue.
 // The AI only ever produces filters (words, a price range, a country); it never writes results, so it cannot invent a product or a price.
@@ -236,6 +238,8 @@ async function fetchRows(intent: SearchIntent, drop: { price: boolean; where: bo
   const stock = drop.price ? false : intent.inStockOnly;
   const category = drop.where ? "" : intent.category;
   const country = drop.where ? "" : intent.country;
+  const spellings = countryAliases(country);
+  const hidden = unlistedSlugs();
   return (await db()`SELECT p.id, p.name, p.description, p.category, p.price_usd, p.colors, p.sizes, p.stock, p.image_url, p.created_at,
       s.slug AS seller_slug, s.shop_name AS seller_name, s.country AS seller_country
     FROM products p JOIN sellers s ON s.id = p.seller_id
@@ -244,7 +248,8 @@ async function fetchRows(intent: SearchIntent, drop: { price: boolean; where: bo
       AND (${min}::numeric IS NULL OR p.price_usd >= ${min}::numeric)
       AND (NOT ${stock}::boolean OR p.stock > 0)
       AND (${category} = '' OR lower(p.category) = lower(${category}))
-      AND (${country} = '' OR lower(s.country) = lower(${country}))
+      AND (cardinality(${spellings}::text[]) = 0 OR lower(s.country) = ANY(${spellings}::text[]))
+      AND s.slug <> ALL(${hidden}::text[])
     LIMIT 500`) as Row[];
 }
 
@@ -320,16 +325,18 @@ export async function runSearch(intent: SearchIntent): Promise<SmartResult> {
     intent,
     summary: describeIntent(intent),
     relaxed,
-    products: items.map((r) => ({ ...mapProduct(r), seller: { slug: r.seller_slug as string, name: r.seller_name as string, country: r.seller_country as string } })),
+    products: items.map((r) => ({ ...mapProduct(r), seller: { slug: r.seller_slug as string, name: r.seller_name as string, country: normalizeCountry(r.seller_country as string) } })),
     sellers,
   };
 }
 
 export async function loadContext(): Promise<Omit<SearchContext, "rates">> {
   const sql = db();
+  const hidden = unlistedSlugs();
   const [cats, countries] = await Promise.all([
-    sql`SELECT DISTINCT category FROM products WHERE active AND category <> '' ORDER BY category LIMIT 60`,
-    sql`SELECT DISTINCT country FROM sellers WHERE country <> '' ORDER BY country LIMIT 60`,
+    sql`SELECT DISTINCT p.category FROM products p JOIN sellers s ON s.id = p.seller_id WHERE p.active AND p.category <> '' AND s.slug <> ALL(${hidden}::text[]) ORDER BY p.category LIMIT 60`,
+    sql`SELECT DISTINCT country FROM sellers WHERE country <> '' AND slug <> ALL(${hidden}::text[]) ORDER BY country LIMIT 60`,
   ]);
-  return { categories: cats.map((r) => r.category as string), countries: countries.map((r) => r.country as string) };
+  const names = Array.from(new Set(countries.map((r) => normalizeCountry(r.country as string)).filter(Boolean))).sort();
+  return { categories: cats.map((r) => r.category as string), countries: names };
 }

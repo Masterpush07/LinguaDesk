@@ -3,8 +3,10 @@ import { db } from "@/lib/db";
 import { issueAccessToken } from "@/lib/nexconn-server";
 import { clientIp, isLimited, recordEvent } from "@/lib/rate-limit";
 import { hashPasscode, newId, newNexconnId, slugify } from "@/lib/v2/crypto";
+import { normalizeCountry } from "@/lib/v2/country";
 import { generateRecoveryCode, normalizeRecoveryCode } from "@/lib/v2/recovery";
 import { setStaffCookie } from "@/lib/v2/session";
+import { isSlugFreeFor } from "@/lib/v2/slug-aliases";
 
 const LANG = /^[a-z]{2}$/;
 const SIGNUPS_PER_HOUR_PER_IP = 5;
@@ -15,7 +17,7 @@ export async function POST(req: NextRequest) {
   const text = (v: unknown, max: number) => (typeof v === "string" ? v.trim().slice(0, max) : "");
   const shopName = text(body?.shopName, 60);
   const ownerName = text(body?.ownerName, 60);
-  const country = text(body?.country, 60);
+  const country = normalizeCountry(text(body?.country, 60));
   const tagline = text(body?.tagline, 200);
   const passcode = typeof body?.passcode === "string" ? body.passcode : "";
   const languages = Array.isArray(body?.languages)
@@ -36,6 +38,10 @@ export async function POST(req: NextRequest) {
 
   const sql = db();
   const base = slugify(shopName);
+  // Sign-in finds a shop by name or slug, so a name that repeats another shop's name, or one of a renamed shop's two addresses, would be ambiguous.
+  if (!isSlugFreeFor(base) || (await sql`SELECT 1 FROM sellers WHERE lower(shop_name) = ${shopName.toLowerCase()}`).length > 0) {
+    return NextResponse.json({ error: "Another shop already uses this name. Choose a different shop name." }, { status: 409 });
+  }
   let slug = base;
   for (let n = 2; (await sql`SELECT 1 FROM sellers WHERE slug = ${slug}`).length > 0; n++) slug = `${base.slice(0, 36)}-${n}`;
 

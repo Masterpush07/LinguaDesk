@@ -1,8 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { slugify } from "@/lib/v2/crypto";
+import { normalizeCountry } from "@/lib/v2/country";
 import { requireStaff } from "@/lib/v2/guard";
 import { Check, fail, invalidBody, readJson } from "@/lib/v2/seller-api";
+import { storefrontPath } from "@/lib/v2/seller-paths";
+import { isSlugFreeFor } from "@/lib/v2/slug-aliases";
 import { validateHours, validTimeZone, type WeekHours } from "@/lib/v2/hours";
 import { PAYMENT_NOTE_MAX, validatePaymentLink } from "@/lib/v2/delivery";
 import type { SettingsDto } from "@/lib/v2/seller-types";
@@ -59,7 +62,7 @@ async function load(sellerId: string): Promise<SettingsDto | null> {
       care: str(pol.care),
     },
     slug: s.slug,
-    shareUrlPath: `/s/${s.slug}`,
+    shareUrlPath: storefrontPath(s.slug),
   };
 }
 
@@ -85,7 +88,7 @@ export async function PUT(req: NextRequest) {
   const agentName = body.agentName === undefined ? null : check.text(body.agentName, "Assistant name", 40);
   const tagline = check.text(body.tagline, "Tagline", 200);
   const about = check.text(body.about, "About", 600);
-  const country = check.text(body.country, "Country", 100);
+  const country = normalizeCountry(check.text(body.country, "Country", 100));
   const hours = check.text(body.hours, "Support hours", 120);
   let businessHours: string | null = null;
   if (body.businessHours !== undefined) {
@@ -123,6 +126,8 @@ export async function PUT(req: NextRequest) {
   const sql = db();
   const clash = await sql`SELECT 1 FROM sellers WHERE id <> ${auth.staff.sellerId} AND (lower(shop_name) = ${name.toLowerCase()} OR slug = ${slugify(name)})`;
   if (clash.length > 0) return fail("Another shop already uses this name. Choose a different shop name.", 409);
+  // Only the shop that holds one of a renamed shop's two addresses may use a name that slugifies to either of them.
+  if (!isSlugFreeFor(slugify(name), auth.staff.sellerSlug)) return fail("Another shop already uses this name. Choose a different shop name.", 409);
 
   const rows = await sql`UPDATE sellers SET shop_name = ${name}, agent_name = COALESCE(${agentName}, agent_name), tagline = ${tagline}, about = ${about}, country = ${country},
       languages = ${languages}, hours = ${hours}, tone = ${tone}, response_target_min = ${responseTargetMin},

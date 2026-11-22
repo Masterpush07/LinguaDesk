@@ -2,14 +2,17 @@ import { NextResponse, type NextRequest } from "next/server";
 import { parseOrderCard } from "@/lib/catalog";
 import { db } from "@/lib/db";
 import { sendDirectText } from "@/lib/nexconn-server";
-import { notFound, requireBuyer } from "@/lib/v2/buyer-api";
+import { notFound, requireBuyer, addSystemMessage } from "@/lib/v2/buyer-api";
 import { newId } from "@/lib/v2/crypto";
 import { validateDelivery } from "@/lib/v2/delivery";
+import { confirmOrderWithStock } from "@/lib/v2/inventory";
+import { notifyShop } from "@/lib/v2/notifications";
 import { dispatch, logEvent } from "@/lib/v2/threads";
 
 const ENGLISH_THANKS = "Order confirmed. Thank you.";
 
-// The buyer confirms a proposed order and gives the delivery address. The status change is one atomic UPDATE, so a second tap only reports that it is already confirmed.
+// The buyer confirms a proposed order and gives the delivery address. Claiming the order and taking its stock are one atomic statement (lib/v2/inventory.ts),
+// so a second tap only reports that it is already confirmed and the last unit can never be sold twice.
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await requireBuyer();
   if ("error" in auth) return auth.error;
@@ -25,10 +28,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (waiting.status === "proposed") return NextResponse.json({ error: parsed.error, field: parsed.field ?? null }, { status: 400 });
   }
 
-  const claimed = parsed.ok
-    ? await sql`UPDATE orders_v2 SET status = 'confirmed', confirmed_at = now(), updated_at = now(), delivery = ${JSON.stringify(parsed.delivery)}::jsonb
-    WHERE id = ${id} AND buyer_id = ${auth.buyerId} AND status = 'proposed' RETURNING seller_id, card, total`
-    : [];
+  let claimed: { seller_id: string; card: unknown; total: number }[] = [];
+  if (parsed.ok) {
+    const result = await confirmOrderWithStock(id, auth.buyerId, parsed.delivery);
+    if (result.kind === "out_of_stock") return soldOut(sql, id, auth.buyerId);
+    if (result.kind === "confirmed") claimed = [result.order];
+  }
   if (claimed.length === 0) {
     const [existing] = await sql`SELECT status FROM orders_v2 WHERE id = ${id} AND buyer_id = ${auth.buyerId}`;
     if (!existing) return notFound("Order");
@@ -66,7 +71,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       status = CASE WHEN status = 'assigned' THEN 'assigned' ELSE 'waiting' END
     WHERE id = ${threadId} RETURNING status, assigned_staff_id`;
   await logEvent(threadId, "order_confirmed", "buyer", { orderId: id, total });
+  await notifyShop(sellerId, threadId, "order_confirmed", "An order was confirmed", `Order ${id}: ${lines || "see the order"}, total $${total}. Pack it and update its status in Orders.`);
   if (thread?.status === "waiting" && !thread.assigned_staff_id) await dispatch(threadId, sellerId, ctx.language);
 
   return NextResponse.json({ ok: true });
+}
+
+// The stock was taken by someone else after the card was sent. The order stays open and the shop is told, so nothing is lost silently.
+async function soldOut(sql: ReturnType<typeof db>, orderId: string, buyerId: string) {
+  const [order] = await sql`SELECT seller_id, thread_id FROM orders_v2 WHERE id = ${orderId} AND buyer_id = ${buyerId}`;
+  if (order) {
+    if (order.thread_id) await addSystemMessage(order.thread_id, `Order ${orderId} could not be confirmed because an item is no longer available in that quantity. The shop will contact you.`).catch(() => undefined);
+    await notifyShop(order.seller_id, order.thread_id ?? null, "needs_reply", "An order could not be confirmed", `Order ${orderId}: the customer tried to confirm but stock has run out. Update the order or the stock.`);
+  }
+  return NextResponse.json({ error: "Sorry, an item in this order is no longer available in that quantity. The shop has been told and will contact you.", code: "out_of_stock" }, { status: 409 });
 }

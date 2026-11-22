@@ -18,7 +18,7 @@ const PRIMARY = [
 const SECONDARY = [
   { href: "/sell", label: "For sellers" },
   { href: "/pricing", label: "Pricing" },
-  { href: "/demo", label: "Live demo" },
+  { href: "/demo", label: "How it works" },
 ];
 
 const FOCUS = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500";

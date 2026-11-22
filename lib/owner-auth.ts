@@ -1,5 +1,6 @@
 import { createHmac, timingSafeEqual } from "crypto";
 import { cookies } from "next/headers";
+import { legacyEnabled } from "@/lib/legacy";
 
 // Signed, httpOnly login cookie so owner API routes can tell the owner apart from a customer.
 const COOKIE = "linguadesk_owner";
@@ -29,7 +30,7 @@ export async function clearOwnerCookie() {
 }
 
 export async function isOwner(): Promise<boolean> {
-  if (!process.env.OWNER_PASSCODE) return false;
+  if (!legacyEnabled() || !process.env.OWNER_PASSCODE) return false;
   const value = (await cookies()).get(COOKIE)?.value;
   const [expires, signature] = value?.split(".") ?? [];
   if (!expires || !signature || Number(expires) < Date.now()) return false;

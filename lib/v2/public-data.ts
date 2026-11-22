@@ -1,6 +1,8 @@
 import { db } from "@/lib/db";
 import { iso } from "@/lib/v2/seller-api";
 import { isOpenNow, type WeekHours } from "@/lib/v2/hours";
+import { countryAliases, normalizeCountry } from "@/lib/v2/country";
+import { isUnlisted, unlistedSlugs } from "@/lib/v2/visibility";
 
 // Server-only. Shapes returned by the public (no sign-in) marketplace API. Nothing here exposes staff, passcodes or chat identities.
 const ONLINE_WINDOW_SECONDS = 90;
@@ -52,6 +54,8 @@ export function mapProduct(r: Row): PublicProduct {
 
 export async function listSellers(q: string, country: string): Promise<PublicSellerSummary[]> {
   // position() instead of LIKE so the visitor's text is never read as a wildcard pattern.
+  const hidden = unlistedSlugs();
+  const spellings = countryAliases(country);
   const rows = await db()`SELECT s.slug, s.shop_name, s.tagline, s.country, s.languages, s.response_target_min, s.business_hours, s.timezone,
       EXISTS (SELECT 1 FROM staff st WHERE st.seller_id = s.id AND st.available
         AND st.last_seen > now() - make_interval(secs => ${ONLINE_WINDOW_SECONDS})) AS team_online,
@@ -60,14 +64,15 @@ export async function listSellers(q: string, country: string): Promise<PublicSel
       (SELECT count(*)::int FROM reviews rv WHERE rv.seller_id = s.id) AS review_count
     FROM sellers s
     WHERE (${q} = '' OR position(lower(${q}) in lower(s.shop_name || ' ' || s.tagline || ' ' || s.country)) > 0)
-      AND (${country} = '' OR lower(s.country) = lower(${country}))
+      AND (cardinality(${spellings}::text[]) = 0 OR lower(s.country) = ANY(${spellings}::text[]))
+      AND s.slug <> ALL(${hidden}::text[])
     ORDER BY team_online DESC, s.created_at DESC
     LIMIT 100`;
   const sellers = rows.map((r) => ({
     slug: r.slug,
     name: r.shop_name,
     tagline: r.tagline,
-    country: r.country,
+    country: normalizeCountry(r.country as string),
     languages: r.languages,
     teamOnline: r.team_online && isOpenNow(r.business_hours as WeekHours, r.timezone as string, new Date()),
     productCount: r.product_count,
@@ -80,18 +85,21 @@ export async function listSellers(q: string, country: string): Promise<PublicSel
 }
 
 export async function listProducts(q: string, category: string, country: string) {
+  const hidden = unlistedSlugs();
+  const spellings = countryAliases(country);
   const rows = await db()`SELECT p.id, p.name, p.description, p.category, p.price_usd, p.colors, p.sizes, p.stock, p.image_url,
       s.slug AS seller_slug, s.shop_name AS seller_name, s.country AS seller_country
     FROM products p JOIN sellers s ON s.id = p.seller_id
     WHERE p.active
       AND (${q} = '' OR position(lower(${q}) in lower(p.name || ' ' || p.description || ' ' || p.category || ' ' || s.shop_name)) > 0)
       AND (${category} = '' OR lower(p.category) = lower(${category}))
-      AND (${country} = '' OR lower(s.country) = lower(${country}))
+      AND (cardinality(${spellings}::text[]) = 0 OR lower(s.country) = ANY(${spellings}::text[]))
+      AND s.slug <> ALL(${hidden}::text[])
     ORDER BY p.created_at DESC
     LIMIT 60`;
   return rows.map((r) => ({
     ...mapProduct(r),
-    seller: { slug: r.seller_slug as string, name: r.seller_name as string, country: r.seller_country as string },
+    seller: { slug: r.seller_slug as string, name: r.seller_name as string, country: normalizeCountry(r.seller_country as string) },
   }));
 }
 
@@ -106,7 +114,7 @@ export async function productDetail(id: string) {
     seller: {
       slug: r.slug as string,
       name: r.shop_name as string,
-      country: r.country as string,
+      country: normalizeCountry(r.country as string),
       languages: r.languages as string[],
       teamOnline: await isTeamOnline(r.seller_id as string, r.business_hours as WeekHours, r.timezone as string),
       hours: r.hours as string,
@@ -142,7 +150,7 @@ export async function sellerDetail(slug: string) {
       name: s.shop_name as string,
       tagline: s.tagline as string,
       about: s.about as string,
-      country: s.country as string,
+      country: normalizeCountry(s.country as string),
       languages: s.languages as string[],
       hours: s.hours as string,
       shipping: s.shipping as Record<string, unknown>,
@@ -160,27 +168,28 @@ export async function sellerDetail(slug: string) {
 
 // One-row lookups for page titles and share previews, so rendering metadata stays cheap.
 export async function shopMeta(slug: string) {
-  const [r] = await db()`SELECT s.shop_name, s.tagline, s.about, s.country,
+  const [r] = await db()`SELECT s.slug, s.shop_name, s.tagline, s.about, s.country,
       (SELECT p.image_url FROM products p WHERE p.seller_id = s.id AND p.active AND p.image_url IS NOT NULL ORDER BY p.created_at LIMIT 1) AS image_url
     FROM sellers s WHERE s.slug = ${slug}`;
   if (!r) return null;
-  return { name: r.shop_name as string, text: ((r.tagline as string) || (r.about as string) || "").trim(), country: r.country as string, imageUrl: (r.image_url as string | null) ?? null };
+  return { slug: r.slug as string, name: r.shop_name as string, text: ((r.tagline as string) || (r.about as string) || "").trim(), country: normalizeCountry(r.country as string), imageUrl: (r.image_url as string | null) ?? null, listed: !isUnlisted(r.slug as string) };
 }
 
 export async function productMeta(sellerSlug: string, id: string) {
-  const [r] = await db()`SELECT p.name, p.description, p.price_usd, p.image_url, s.shop_name
+  const [r] = await db()`SELECT p.id, p.name, p.description, p.price_usd, p.image_url, s.slug, s.shop_name
     FROM products p JOIN sellers s ON s.id = p.seller_id
     WHERE p.id = ${id} AND p.active AND s.slug = ${sellerSlug}`;
   if (!r) return null;
-  return { name: r.name as string, description: r.description as string, priceUsd: Number(r.price_usd), imageUrl: (r.image_url as string | null) ?? null, shopName: r.shop_name as string };
+  return { id: r.id as string, slug: r.slug as string, name: r.name as string, description: r.description as string, priceUsd: Number(r.price_usd), imageUrl: (r.image_url as string | null) ?? null, shopName: r.shop_name as string, listed: !isUnlisted(r.slug as string) };
 }
 
 // Every public page a search engine may list: shops and their active products.
 export async function sitemapEntries() {
   const sql = db();
+  const hidden = unlistedSlugs();
   const [shops, products] = await Promise.all([
-    sql`SELECT slug, created_at FROM sellers ORDER BY created_at DESC LIMIT 1000`,
-    sql`SELECT p.id, p.updated_at, s.slug FROM products p JOIN sellers s ON s.id = p.seller_id WHERE p.active ORDER BY p.updated_at DESC LIMIT 5000`,
+    sql`SELECT slug, created_at FROM sellers WHERE slug <> ALL(${hidden}::text[]) ORDER BY created_at DESC LIMIT 1000`,
+    sql`SELECT p.id, p.updated_at, s.slug FROM products p JOIN sellers s ON s.id = p.seller_id WHERE p.active AND s.slug <> ALL(${hidden}::text[]) ORDER BY p.updated_at DESC LIMIT 5000`,
   ]);
   return {
     shops: shops.map((r) => ({ slug: r.slug as string, at: new Date(r.created_at as string) })),

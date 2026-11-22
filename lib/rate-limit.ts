@@ -11,11 +11,13 @@ export function clientIp(headers: Headers): string {
   );
 }
 
-// If the database check itself fails this answers "not limited", so a database hiccup never locks real users out.
+// By default a failed check answers "not limited", so a database hiccup never locks real users out of public features.
+// Sign-in and passcode routes pass failClosed: a limiter that cannot count must not become a free guessing window.
 export async function isLimited(
   key: string,
   limit: number,
   windowMinutes: number,
+  options: { failClosed?: boolean } = {},
 ): Promise<boolean> {
   try {
     const [row] = await db()`SELECT count(*)::int AS n FROM rate_events
@@ -26,7 +28,7 @@ export async function isLimited(
       "rate limit check failed:",
       err instanceof Error ? err.message : err,
     );
-    return false;
+    return options.failClosed === true;
   }
 }
 

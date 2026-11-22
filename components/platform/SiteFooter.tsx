@@ -12,7 +12,7 @@ export default function SiteFooter() {
         <div className="flex flex-wrap items-center gap-4">
           <Link href="/pricing" className="hover:text-slate-900">Pricing</Link>
           <Link href="/sell" className="hover:text-slate-900">Sell on LinguaDesk</Link>
-          <Link href="/demo" className="hover:text-slate-900">Live demo</Link>
+          <Link href="/demo" className="hover:text-slate-900">How it works</Link>
           <Link href="/marketplace" className="hover:text-slate-900">Marketplace</Link>
           <Link href="/privacy" className="hover:text-slate-900" data-testid="footer-privacy">Privacy</Link>
         </div>

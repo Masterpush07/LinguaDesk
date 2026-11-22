@@ -2,7 +2,7 @@ import { generateReply, type BotReply, type HistoryItem, type Persona } from "@/
 import type { WebhookEvent } from "@/lib/bot";
 import { db } from "@/lib/db";
 import { sendDirectText } from "@/lib/nexconn-server";
-import { onlyKnownNumbers } from "@/lib/number-check";
+import { numberIssue, numbersPreserved } from "@/lib/number-check";
 import { buildKnowledge } from "@/lib/shop-data";
 import { newId } from "@/lib/v2/crypto";
 import { hoursStatus, summarizeHours, type HoursStatus } from "@/lib/v2/hours";
@@ -10,8 +10,10 @@ import { notifyShop } from "@/lib/v2/notifications";
 import { languageCode } from "@/lib/v2/voice";
 import { assistantName, loadShop, sellerByNexconnId, type SellerRow } from "@/lib/v2/shop";
 import { dispatch, logEvent, priorityFor, STAFF_SILENCE_MINUTES } from "@/lib/v2/threads";
+import { AI_DEADLINE_MS, errorText, withDeadline } from "@/lib/v2/webhook-guard";
 
 const DIRECT_CHANNEL = 1;
+const MAX_BUYER_MESSAGES_PER_10_MIN = 30; // a buyer can message through the Nexconn SDK directly, which skips the HTTP rate limits
 const FALLBACK_ANSWER = "Thank you for your message. The shop team has been notified and will reply in this conversation.";
 const TONES: Persona["tone"][] = ["formal", "neutral", "friendly"];
 
@@ -25,20 +27,21 @@ function textOf(content: string, messageType: string): string | null {
 }
 
 // Runs after the webhook has been acknowledged. Routes each buyer message to the shop it was addressed to.
+// Duplicates are caught per message (the stored message ID), not per event, so a crash before a message is stored never blocks a retry.
 export async function handleEventV2(event: WebhookEvent) {
   if (event.type !== "message:send") return;
-  const sql = db();
-  // Separate prefix from the original bot, which claims the plain event ID.
-  const claimed = await sql`INSERT INTO webhook_events (id) VALUES (${`v2:${event.id}`}) ON CONFLICT DO NOTHING RETURNING id`;
-  if (claimed.length === 0) return;
-
   for (const m of event.data) {
-    if (m.channelType !== DIRECT_CHANNEL || m.os === "Server") continue; // server-sent messages are stored when we send them
-    const seller = await sellerByNexconnId(m.channelId);
-    if (!seller) continue; // not addressed to a shop on this platform
-    const text = textOf(m.content, m.messageType);
-    if (!text) continue;
-    await answerBuyer(seller, m.userId, m.messageId, text);
+    try {
+      if (!m || m.channelType !== DIRECT_CHANNEL || m.os === "Server") continue; // server-sent messages are stored when we send them
+      const seller = await sellerByNexconnId(m.channelId);
+      if (!seller) continue; // not addressed to a shop on this platform
+      const text = textOf(m.content, m.messageType);
+      if (!text) continue;
+      await answerBuyer(seller, m.userId, m.messageId, text);
+    } catch (err) {
+      // One bad message must not drop the rest of the batch.
+      console.error(`buyer message failed event=${event.id} message=${m?.messageId}:`, errorText(err));
+    }
   }
 }
 
@@ -75,10 +78,82 @@ async function threadContext(thread: Record<string, unknown>, sellerId: string):
   return `Context: the customer is asking about the product '${String(p.name).slice(0, 80)}'${picked.length ? ` (${picked.join(", ")})` : ""}.`;
 }
 
+type Progress = { answered: boolean };
+
 async function answerBuyer(seller: SellerRow, buyerId: string, messageId: string, text: string) {
   const sql = db();
   const thread = await ensureThread(seller, buyerId);
   const threadId: string = thread.id;
+  const recent = await sql`SELECT sender, text, text_en FROM thread_messages WHERE thread_id = ${threadId} ORDER BY created_at DESC LIMIT 8`;
+
+  // The message is stored before anything slow runs: it can no longer be lost, and a second delivery of it stops here.
+  const stored = await sql`INSERT INTO thread_messages (id, thread_id, sender, text) VALUES (${messageId}, ${threadId}, 'buyer', ${text}) ON CONFLICT DO NOTHING RETURNING id`;
+  if (stored.length === 0) {
+    console.warn(`duplicate buyer message ignored message=${messageId} thread=${threadId}`);
+    return;
+  }
+
+  const progress: Progress = { answered: false };
+  const [{ n: recentCount }] = await sql`SELECT count(*)::int AS n FROM thread_messages
+    WHERE thread_id = ${threadId} AND sender = 'buyer' AND created_at > now() - interval '10 minutes'`;
+  if (recentCount > MAX_BUYER_MESSAGES_PER_10_MIN) {
+    // Kept for the team to read, but it costs no AI call, notification or reply.
+    console.warn(`buyer message flood: stored without AI reply message=${messageId} thread=${threadId} count=${recentCount}`);
+    return;
+  }
+  try {
+    await respond(seller, buyerId, messageId, text, thread, recent, progress);
+  } catch (err) {
+    console.error(`buyer message processing failed message=${messageId} thread=${threadId}:`, errorText(err));
+    await recover(seller, buyerId, threadId, text, progress);
+  }
+}
+
+// Last resort after an unexpected failure: put the thread in front of the team and tell the buyer someone will reply, so it is never left silent.
+async function recover(seller: SellerRow, buyerId: string, threadId: string, text: string, progress: Progress) {
+  const sql = db();
+  try {
+    const now = new Date();
+    const hours = hoursStatus(seller.business_hours, seller.timezone, now);
+    const moved = await sql`UPDATE threads SET status = 'waiting', assigned_staff_id = NULL, summary = ${text}, priority = ${priorityFor(text)},
+        handoff_at = now(), sla_due_at = ${slaDue(seller, hours, now).toISOString()}::timestamptz, first_response_at = NULL
+      WHERE id = ${threadId} AND status IN ('ai', 'resolved') RETURNING id`;
+    if (moved.length > 0) {
+      await logEvent(threadId, "handoff", "ai", { reason: "processing_error" });
+      await notifyShop(seller.id, threadId, "needs_reply", "A customer needs your reply", text);
+      await dispatch(threadId, seller.id, null);
+    }
+  } catch (err) {
+    console.error(`recovery hand-over failed thread=${threadId}:`, errorText(err));
+  }
+  if (progress.answered) return;
+  await deliverAnswer(seller, buyerId, threadId, FALLBACK_ANSWER, null, true, false).catch((err) => console.error(`fallback reply failed thread=${threadId}:`, errorText(err)));
+}
+
+// While the shop is closed the response-time clock starts at the next opening.
+function slaDue(seller: SellerRow, hours: HoursStatus, now: Date): Date {
+  const start = hours.configured && !hours.openNow && hours.nextOpening ? hours.nextOpening.at : now;
+  return new Date(start.getTime() + seller.response_target_min * 60_000);
+}
+
+// The buyer's view reads the database, so the answer is stored even when Nexconn cannot deliver it right now.
+async function deliverAnswer(seller: SellerRow, buyerId: string, threadId: string, answer: string, language: string | null, needsHuman: boolean, verified: boolean) {
+  let aiMessageId: string;
+  try {
+    const sent = await sendDirectText(seller.nexconn_user_id, buyerId, answer, { ai: true, metadata: needsHuman ? { handoff: "1" } : {} });
+    aiMessageId = sent.messageIds?.[0]?.messageId ?? newId("msg");
+  } catch (err) {
+    console.error(`reply not delivered through Nexconn, stored for the buyer's view thread=${threadId}:`, errorText(err));
+    aiMessageId = newId("msg");
+  }
+  await db()`INSERT INTO thread_messages (id, thread_id, sender, text, lang, numbers_verified)
+    VALUES (${aiMessageId}, ${threadId}, 'ai', ${answer}, ${language}, ${verified}) ON CONFLICT DO NOTHING`;
+}
+
+async function respond(seller: SellerRow, buyerId: string, messageId: string, text: string, thread: Record<string, unknown>, recent: Record<string, unknown>[], progress: Progress) {
+  const sql = db();
+  const threadId = thread.id as string;
+  await sql`UPDATE threads SET last_text = ${text}, last_at = now(), subject = CASE WHEN subject = '' THEN ${text.slice(0, 80)} ELSE subject END WHERE id = ${threadId}`;
 
   // A buyer writing to a closed conversation reopens it.
   if (thread.status === "resolved") {
@@ -92,10 +167,9 @@ async function answerBuyer(seller: SellerRow, buyerId: string, messageId: string
   const hours = hoursStatus(seller.business_hours, seller.timezone, now);
   const hoursNote = hours.configured ? buildHoursNote(seller, hours) : undefined;
   const kb = [buildKnowledge(shop), extra, await threadContext(thread, seller.id)].filter(Boolean).join("\n\n");
-  const recent = await sql`SELECT sender, text, text_en FROM thread_messages WHERE thread_id = ${threadId} ORDER BY created_at DESC LIMIT 8`;
-  const history: HistoryItem[] = recent.reverse().map((r) => ({
+  const history: HistoryItem[] = [...recent].reverse().map((r) => ({
     from: r.sender === "buyer" ? "customer" : r.sender === "staff" ? "shop_owner" : "shop_ai",
-    text: r.text_en ?? r.text,
+    text: (r.text_en ?? r.text) as string,
   }));
 
   let reply: BotReply | null = null;
@@ -106,22 +180,29 @@ async function answerBuyer(seller: SellerRow, buyerId: string, messageId: string
       tone: TONES.find((t) => t === seller.tone) ?? "neutral",
       hoursNote,
     };
-    reply = await generateReply(text, { kb, history, persona });
+    reply = await withDeadline(generateReply(text, { kb, history, persona }), AI_DEADLINE_MS, "AI reply");
   } catch (err) {
-    console.error("AI reply failed:", err instanceof Error ? err.message : err);
+    console.error(`AI reply failed message=${messageId} thread=${threadId}:`, errorText(err));
   }
 
-  // A number that is neither in the shop info, the buyer's message nor something the shop already said never reaches the buyer.
+  // A number, price or quantity that is neither in the shop info, the buyer's message nor something the shop already said never reaches the buyer.
   const shopSaid = history.filter((h) => h.from !== "customer").map((h) => h.text);
-  if (reply && !onlyKnownNumbers(reply.answer, kb, text, hoursNote ?? "", ...shopSaid)) {
-    console.error("AI answer blocked, unknown number:", reply.answer);
-    reply = { ...reply, needs_human: true, answer: FALLBACK_ANSWER, owner_summary: `${reply.owner_summary} (The AI draft was blocked because it contained a number that is not in the shop information.)` };
+  const issue = reply ? numberIssue(reply.answer, kb, text, hoursNote ?? "", ...shopSaid) : null;
+  const summaryUnchecked = reply ? numberIssue(reply.owner_summary, kb, text) !== null : false;
+  if (reply && issue) {
+    console.error(`AI answer blocked (${issue}):`, reply.answer);
+    reply = { ...reply, needs_human: true, answer: FALLBACK_ANSWER, owner_summary: `${reply.owner_summary} (The AI draft was blocked because ${issue}. A team member should answer.)` };
+  }
+  if (reply && !numbersPreserved(text, reply.customer_text_en)) {
+    // The English reading of the buyer's message changed a number, so the AI may have misread it too: a person must check the original.
+    console.warn(`English translation changed a number message=${messageId}`);
+    reply = { ...reply, needs_human: true, owner_summary: `${reply.owner_summary} (The English translation of the customer's message changed a number. Read the original message before quoting a price or quantity.)` };
+  } else if (reply && summaryUnchecked) {
+    reply = { ...reply, owner_summary: `${reply.owner_summary} (A number in this summary could not be checked against the message. Read the original.)` };
   }
 
-  await sql`INSERT INTO thread_messages (id, thread_id, sender, text, text_en, lang)
-    VALUES (${messageId}, ${threadId}, 'buyer', ${text}, ${reply?.customer_text_en ?? null}, ${reply?.customer_language ?? null}) ON CONFLICT DO NOTHING`;
-  await sql`UPDATE threads SET last_text = ${text}, last_at = now(), language = COALESCE(${reply?.customer_language ?? null}, language),
-      subject = CASE WHEN subject = '' THEN ${text.slice(0, 80)} ELSE subject END WHERE id = ${threadId}`;
+  await sql`UPDATE thread_messages SET text_en = ${reply?.customer_text_en ?? null}, lang = ${reply?.customer_language ?? null} WHERE id = ${messageId}`;
+  await sql`UPDATE threads SET language = COALESCE(${reply?.customer_language ?? null}, language) WHERE id = ${threadId}`;
 
   // While a team member is actively replying the AI stays silent; once they go quiet it takes over again.
   if (thread.status === "assigned") {
@@ -133,9 +214,7 @@ async function answerBuyer(seller: SellerRow, buyerId: string, messageId: string
   if (needsHuman && (thread.status === "ai" || thread.status === "assigned")) {
     const priority = priorityFor(reply?.customer_text_en ?? text);
     // A thread whose staff went quiet goes back to the queue; a thread already waiting keeps its place and original SLA.
-    // While the shop is closed the response-time clock starts at the next opening.
-    const slaStart = hours.configured && !hours.openNow && hours.nextOpening ? hours.nextOpening.at : now;
-    const slaDueAt = new Date(slaStart.getTime() + seller.response_target_min * 60_000);
+    const slaDueAt = slaDue(seller, hours, now);
     await sql`UPDATE threads SET status = 'waiting', assigned_staff_id = NULL, summary = ${reply?.owner_summary ?? text}, priority = ${priority},
         handoff_at = now(), sla_due_at = ${slaDueAt.toISOString()}::timestamptz, first_response_at = NULL WHERE id = ${threadId}`;
     await logEvent(threadId, "handoff", "ai", { reason: reply ? "ai_requested" : "ai_unavailable", priority });
@@ -150,9 +229,6 @@ async function answerBuyer(seller: SellerRow, buyerId: string, messageId: string
     await dispatch(threadId, seller.id, languageCode(reply?.customer_language) ?? null);
   }
 
-  const answer = reply?.answer ?? FALLBACK_ANSWER;
-  const sent = await sendDirectText(seller.nexconn_user_id, buyerId, answer, { ai: true, metadata: needsHuman ? { handoff: "1" } : {} });
-  const aiMessageId = sent.messageIds?.[0]?.messageId ?? newId("msg");
-  await sql`INSERT INTO thread_messages (id, thread_id, sender, text, lang, numbers_verified)
-    VALUES (${aiMessageId}, ${threadId}, 'ai', ${answer}, ${reply?.customer_language ?? null}, ${!!reply}) ON CONFLICT DO NOTHING`;
+  progress.answered = true; // from here a failure must not send a second reply
+  await deliverAnswer(seller, buyerId, threadId, reply?.answer ?? FALLBACK_ANSWER, reply?.customer_language ?? null, needsHuman, !!reply);
 }

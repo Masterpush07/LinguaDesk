@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
   if (identity === "buyer:") return NextResponse.json({ error: "Start a conversation first." }, { status: 401 });
 
   const body = (await req.json().catch(() => null)) as { text?: unknown } | null;
-  const text = typeof body?.text === "string" ? body.text.trim() : "";
+  const text = typeof body?.text === "string" ? body.text.trim().slice(0, 2000) : "";
   if (!text) return NextResponse.json({ error: "Enter some text to translate." }, { status: 400 });
 
   const key = `voice-translate:${identity}`;

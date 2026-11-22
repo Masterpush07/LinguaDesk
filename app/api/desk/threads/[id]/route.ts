@@ -5,6 +5,7 @@ import { requireStaff } from "@/lib/v2/guard";
 import { readSelection } from "@/lib/v2/selection";
 import { buyerLabel, fail, iso8601, loadBuyerOrders, loadHead, loadTeam } from "@/lib/v2/desk-threads";
 import type { DeskEvent, DeskMessage, DeskNote, ThreadDetail } from "@/lib/v2/desk-types";
+import { numbersPreserved } from "@/lib/number-check";
 import type { ReportReason, TranslationReportDto } from "@/lib/v2/translation-report";
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -53,6 +54,7 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
         lang: m.lang,
         voiceSeconds: m.voice_seconds,
         numbersVerified: m.numbers_verified,
+        numbersCheck: m.sender === "buyer" && m.text_en && m.text_en.trim() !== m.text.trim() && /\p{Nd}/u.test(m.text) ? (numbersPreserved(m.text, m.text_en) ? "ok" : "mismatch") : null,
         confidence: m.confidence,
         createdAt: iso8601(m.created_at),
         staffName: m.staff_name,

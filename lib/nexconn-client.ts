@@ -32,6 +32,7 @@ let myId = "";
 const messageListeners = new Set<(m: ChatMessage) => void>();
 const connectionListeners = new Set<(connected: boolean) => void>();
 const channelSyncListeners = new Set<() => void>();
+const typingListeners = new Set<(userId: string) => void>();
 
 function toChat(m: Message): ChatMessage | null {
   const text = (m.content as { text?: string }).text;
@@ -91,6 +92,11 @@ export function connect(session: Session): Promise<string> {
         onChannelsSyncComplete() {
           channelSyncListeners.forEach((l) => l());
         },
+        // Fires while the other person is typing in a one-to-one channel with this user.
+        onTypingStatusChanged({ channelIdentifier, userTypingStatus }) {
+          if (channelIdentifier.channelType !== lib.ChannelType.DIRECT) return;
+          for (const t of userTypingStatus) if (t.userId !== myId) typingListeners.forEach((l) => l(t.userId));
+        },
       }),
     );
     const res = await lib.NCEngine.connect({ token: session.token });
@@ -121,6 +127,19 @@ export function onChannelsSynced(listener: () => void) {
   return () => {
     channelSyncListeners.delete(listener);
   };
+}
+
+export function onTyping(listener: (userId: string) => void) {
+  typingListeners.add(listener);
+  return () => {
+    typingListeners.delete(listener);
+  };
+}
+
+// Tells the other person "typing…". Best effort: a failure here must never affect writing or sending.
+export function sendTyping(peerId: string): void {
+  if (!sdk) return;
+  void new sdk.DirectChannel(peerId).sendTypingStatus("RC:TxtMsg").catch(() => undefined);
 }
 
 export async function sendText(

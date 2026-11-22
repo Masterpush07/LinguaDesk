@@ -38,6 +38,8 @@ export type DeskMessage = {
   lang: string | null;
   voiceSeconds: number | null;
   numbersVerified: boolean;
+  // For a buyer's message with numbers and an English reading: whether every number in the original survived into the English.
+  numbersCheck: "ok" | "mismatch" | null;
   confidence: number | null;
   createdAt: string;
   staffName: string | null;
@@ -76,7 +78,7 @@ export type ThreadDetail = {
 
 export type CatalogItem = { id: string; name: string; priceUsd: number; stock: number };
 
-export type PreviewResult = { translated: string; backTranslated: string | null; numbersOk: boolean; language: string; sameLanguage: boolean };
+export type PreviewResult = { translated: string; backTranslated: string | null; numbersOk: boolean; numbers?: { missing: string[]; added: string[]; checked: string[] }; language: string; sameLanguage: boolean };
 
 export type DispatchData = {
   stats: { waiting: number; unassigned: number; breached: number; resolvedToday: number; onlineStaff: number };

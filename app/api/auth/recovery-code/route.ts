@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
   if (!passcode) return fail("Enter your current passcode.");
 
   const key = `v2-passcode-fail:${auth.staff.id}`;
-  if (await isLimited(key, FAILURES, WINDOW_MINUTES)) {
+  if (await isLimited(key, FAILURES, WINDOW_MINUTES, { failClosed: true })) {
     return fail("Too many failed attempts. Try again in 15 minutes.", 429);
   }
 

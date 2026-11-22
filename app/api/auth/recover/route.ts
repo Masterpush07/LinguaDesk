@@ -4,6 +4,7 @@ import { clientIp, isLimited, recordEvent } from "@/lib/rate-limit";
 import { hashPasscode, slugify, verifyPasscode } from "@/lib/v2/crypto";
 import { DUMMY_HASH, issueRecoveryCode, normalizeRecoveryCode } from "@/lib/v2/recovery";
 import { setStaffCookie } from "@/lib/v2/session";
+import { counterpartSlug } from "@/lib/v2/slug-aliases";
 
 const PER_IP_FAILURES = 8;
 const WINDOW_MINUTES = 15;
@@ -20,17 +21,26 @@ export async function POST(req: NextRequest) {
   if (newPasscode.length < 8) return NextResponse.json({ error: "Choose a new passcode of at least 8 characters." }, { status: 400 });
 
   const ipKey = `v2-recover-fail:${clientIp(req.headers)}`;
-  if (await isLimited(ipKey, PER_IP_FAILURES, WINDOW_MINUTES)) {
+  const accountKey = `v2-recover-acct:${slugify(shop)}:${name.toLowerCase()}`;
+  if ((await isLimited(ipKey, PER_IP_FAILURES, WINDOW_MINUTES, { failClosed: true })) || (await isLimited(accountKey, 30, 60, { failClosed: true }))) {
     return NextResponse.json({ error: "Too many failed attempts. Try again in 15 minutes." }, { status: 429 });
   }
 
   const sql = db();
+  // Same rule as sign-in: the other slug of a renamed shop counts only while the typed slug is not a shop of its own.
+  const typedSlug = slugify(shop);
+  const other = counterpartSlug(typedSlug);
   const [row] = await sql`SELECT st.id, st.name, st.role, st.recovery_hash, s.slug, s.shop_name
     FROM staff st JOIN sellers s ON s.id = st.seller_id
-    WHERE st.role = 'owner' AND (s.slug = ${slugify(shop)} OR lower(s.shop_name) = ${shop.toLowerCase()}) AND lower(st.name) = ${name.toLowerCase()}`;
+    WHERE st.role = 'owner'
+      AND (s.slug = ${typedSlug}
+        OR (s.slug = ANY(${other ? [other] : []}) AND NOT EXISTS (SELECT 1 FROM sellers x WHERE x.slug = ${typedSlug}))
+        OR lower(s.shop_name) = ${shop.toLowerCase()})
+      AND lower(st.name) = ${name.toLowerCase()}
+    ORDER BY (s.slug = ${typedSlug} OR lower(s.shop_name) = ${shop.toLowerCase()}) DESC`;
   const ok = await verifyPasscode(code, row?.recovery_hash ?? DUMMY_HASH);
   if (!row || !row.recovery_hash || !ok) {
-    await recordEvent(ipKey);
+    await Promise.all([recordEvent(ipKey), recordEvent(accountKey)]);
     return NextResponse.json({ error: GENERIC_ERROR }, { status: 401 });
   }
 

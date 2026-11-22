@@ -8,6 +8,7 @@ import { deskPath, notifyAuthChanged, useCurrentStaff } from "@/components/platf
 import { FormError, FOCUS, INPUT, PRIMARY_BUTTON, PasscodeField, SECONDARY_BUTTON, TextField } from "@/components/platform/auth/fields";
 import { LanguagePicker } from "@/components/platform/auth/LanguagePicker";
 import { api } from "@/lib/v2/client";
+import { storefrontPath } from "@/lib/v2/seller-paths";
 
 const STEPS = ["Create your shop", "Add products", "Teach the AI", "Launch"];
 const COUNTRIES = ["India", "Japan", "Indonesia", "Rwanda", "Mexico", "Brazil", "France", "United Kingdom", "United States"];
@@ -131,7 +132,7 @@ export default function SellWizard() {
 
   useEffect(() => {
     if (step !== 3 || !created) return;
-    const url = `${window.location.origin}/s/${created.slug}`;
+    const url = `${window.location.origin}${storefrontPath(created.slug)}`;
     let alive = true;
     QRCode.toDataURL(url, { margin: 1, width: 240, errorCorrectionLevel: "M" })
       .then((dataUrl) => {
@@ -626,7 +627,7 @@ export default function SellWizard() {
                   {copied === "yes" ? "The link is on your clipboard." : copied === "failed" ? "Copying is not available here. Select the link and copy it." : ""}
                 </p>
                 <div className="flex flex-wrap gap-3 pt-1">
-                  <Link href={`/s/${created.slug}`} data-testid="wizard-view-shop" className={PRIMARY_BUTTON}>
+                  <Link href={storefrontPath(created.slug)} data-testid="wizard-view-shop" className={PRIMARY_BUTTON}>
                     <ExternalLink className="h-4 w-4" aria-hidden="true" /> View your shop
                   </Link>
                   <Link href="/seller" data-testid="wizard-open-desk" className={SECONDARY_BUTTON}>

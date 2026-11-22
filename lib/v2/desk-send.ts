@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { alertBuyer as alertBuyerAway, type AlertKind } from "@/lib/v2/buyer-alert";
 import type { Staff } from "@/lib/v2/session";
 import type { ThreadHead } from "@/lib/v2/desk-types";
+import { chatPath } from "@/lib/v2/seller-paths";
 import { logEvent } from "@/lib/v2/threads";
 
 // Server-only. Bookkeeping after a team member's message reaches the buyer (a reply or an order card).
@@ -19,12 +20,12 @@ function alertBuyer(staff: Staff, thread: ThreadHead, kind: AlertKind) {
         ref: thread.id,
         threadId: thread.id,
         shopName: staff.sellerName,
-        path: `/chat/${staff.sellerSlug}`,
+        path: chatPath(staff.sellerSlug),
         language: thread.language,
         push: {
           title: `${staff.sellerName} replied`,
           body: typeof row?.text === "string" ? row.text : "You have a new message.",
-          url: `/chat/${staff.sellerSlug}`,
+          url: chatPath(staff.sellerSlug),
           tag: `thread-${thread.id}`,
         },
       });
