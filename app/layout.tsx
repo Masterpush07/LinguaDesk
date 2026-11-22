@@ -16,9 +16,9 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL), // lets share previews turn relative image paths into full links
-  title: "LinguaDesk - multilingual support chat for small shops",
+  title: "LinguaDesk - multilingual marketplace and support chat for small shops",
   description:
-    "AI answers customers in their own language; the shop owner replies in English with number-checked translation.",
+    "A multilingual marketplace for small shops. Customers write in their own language, the shop replies in English, and every price and quantity is checked in code.",
 };
 
 // Runs before first paint so a dark-theme visitor never sees a white flash.
