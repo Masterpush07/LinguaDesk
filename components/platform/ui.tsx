@@ -102,7 +102,7 @@ export function ProductImage({ product, className = "" }: { product: Pick<Produc
       <span className="absolute inset-0 flex items-center justify-center px-4 text-center text-sm font-medium text-indigo-400">{product.name}</span>
       {product.image && (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={product.image} alt={product.name} loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
+        <img src={product.image} alt={product.name} loading="lazy" referrerPolicy="no-referrer" className="absolute inset-0 h-full w-full object-cover" />
       )}
     </div>
   );

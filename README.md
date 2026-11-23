@@ -34,7 +34,7 @@ A small shop that sells online gets questions in languages the owner does not sp
 | Language and currency | Header picker with 10 languages and 8 currencies, saved in the browser and available on phones. Prices are converted for display with daily reference rates (Frankfurter); orders are always charged in US dollars and the buyer is told so |
 | Chat in their language | The AI answers from the shop's products, FAQs and policies. "Ask the shop owner" hands over at any time. Under each message the buyer sees what the shop reads in English, and can report a wrong translation to the shop |
 | Voice | Record a voice message (Groq Whisper, then Gemini as a fallback); the sender reviews and edits the transcript before it is sent. A Listen button reads any message aloud with the device voice when one exists for that language, otherwise with Gemini speech (cached). Audio is not stored |
-| Ordering | The agent proposes an order card built from the catalog. The buyer confirms it in their language, enters a delivery address, and pays through the shop's own payment link or instructions (money goes straight to the shop; LinguaDesk never handles payments). The order page shows a timeline from proposed to delivered, courier and tracking |
+| Ordering | **Buy now** on a product page starts an order without waiting for the shop: price and shipping come from the shop's own catalogue and rules, and the buyer confirms it in the chat. Or the agent proposes an order card built from the catalog. The buyer confirms it in their language, enters a delivery address, and pays through the shop's own payment link or instructions (money goes straight to the shop; LinguaDesk never handles payments). Stock is reserved when the buyer confirms and returned if the order is cancelled. The order page shows a timeline from proposed to delivered, courier and tracking |
 | After the sale | Cancel while an order is proposed or confirmed. Request a return with a photo within 30 days of delivery. Leave one verified review (rating and text) per delivered order |
 | Stay informed | Unread badges in the header and conversation list. When the buyer is away from the chat, a browser pop-up (Web Push) and an optional email (confirmed by link first) announce a reply, an order update or a return decision. A link continues the same conversation on another device |
 | Privacy | `/privacy` lets a buyer download everything stored about them as one file, or delete it (type DELETE). Shops keep an order record (items, total, status) without the buyer's name, address or messages |
@@ -66,11 +66,13 @@ A small shop that sells online gets questions in languages the owner does not sp
 
 - **The AI never sets a price.** Product prices live in the shop's catalog and order totals are computed in code. The AI only translates words.
 - **Answers are grounded.** The AI may use only the shop's products, FAQs, policies, hours and glossary. Anything else triggers a handoff to a person.
-- **Numbers are verified deterministically** (`lib/number-check.ts`) across Latin, Devanagari, Tamil, Kannada, Arabic-Indic and full-width digits. English number words are accepted as the same number ("two" and "2"), so an AI answer cannot introduce a number that is not in the shop data or the buyer's message.
+- **Numbers are verified deterministically** (`lib/number-check.ts`) across Latin, Devanagari, Tamil, Kannada, Arabic-Indic and full-width digits. English number words are accepted as the same number ("two" and "2", "two hundred and fifty" and "250", "2 lakh" and "200,000"), so an AI answer cannot introduce a number that is not in the shop data or the buyer's message. The agent's reply preview shows which numbers were kept, or which were lost or added.
+- **Stock cannot be sold twice.** Confirming an order takes its stock in one database statement that either reserves every line or none (`lib/v2/inventory.ts`); a cancelled order gives it back once.
+- **A buyer message is never lost.** It is stored before any slow work, duplicate deliveries are ignored per message, the AI call has a deadline, and any failure hands the conversation to the team with a holding reply.
 - **Orders, complaints and price negotiation** always go to a person.
 - **Untrusted input.** Buyer text is passed to the AI as data; instructions inside it are ignored.
 - **Graceful degradation.** Text AI tries Gemini 3.5 Flash-Lite, then 3.1 Flash-Lite, then 3.6 Flash, then Groq `gpt-oss-120b` and `gpt-oss-20b`. If every provider fails the buyer gets a polite holding message and the shop is alerted.
-- **Accounts and sessions.** Rate-limited sign-in, hashed passcodes, signed httpOnly session cookies, signed and de-duplicated webhooks, security headers. Photos sent in chats or with returns are private to the people involved; only product photos are public.
+- **Accounts and sessions.** Rate-limited sign-in (per address and per account, failing closed if the counter cannot be read), hashed passcodes, signed httpOnly session cookies that end when the passcode changes, signed webhooks, security headers. Photos sent in chats or with returns are private to the people involved; only product photos are public. The retired single-shop endpoints answer 404 unless `ENABLE_LEGACY_SINGLE_SHOP=1`.
 - **Fair use.** Sign-up, guest sessions, AI calls, read-aloud, exports and deletions are all rate-limited per visitor, so the free tiers cannot be drained by one person.
 
 ## How Nexconn is used
@@ -82,7 +84,7 @@ A small shop that sells online gets questions in languages the owner does not sp
 | **Server API: access tokens** | `app/api/buyer/session`, `app/api/desk/token`: the server picks buyer IDs and issues tokens, so a browser can never request a token as a shop |
 | **Server API: send message** | `lib/nexconn-server.ts`: AI replies, translated agent replies, order cards and status notices are sent server-side as the shop, with primary and backup API hosts and request signing |
 | **Message metadata** | Marks AI-written messages, and carries the order card and the order confirmation inside normal messages, so no custom message type is needed |
-| **Webhooks** (`message:send`) | `app/api/webhooks/nexconn`: signature verified, acknowledged within the 5-second limit, processed in the background and de-duplicated by event ID. One endpoint serves the marketplace and the original single-shop demo |
+| **Webhooks** (`message:send`) | `app/api/webhooks/nexconn`: signature verified, size and shape checked, acknowledged within the 5-second limit, processed in the background and de-duplicated per message. Typing indicators use `sendTypingStatus` and `onTypingStatusChanged` (written against the SDK's typings; not exercised against the live service) |
 
 ## Architecture
 
@@ -180,7 +182,7 @@ scripts/                     migrations, seeds and the original demo reset
 
 Each feature was verified end to end during development: type-check, lint and a production build, plus scripted API checks (several hundred in total) and browser passes for the screens, run against the real database and Nexconn. Those scripts were temporary.
 
-`npm test` runs a committed suite with Node's built-in test runner (needs Node 22.7 or newer, unlike the app itself). The suite runs the app's real route handlers and its real SQL against an in-memory Postgres (PGlite, a dev-only dependency) built from the production migration scripts, so it needs no network and cannot reach a real database. It covers the slug aliases and the redirect proxy in every state of a rename, staff sign-in and recovery, sign-up and settings name rules, the shop lookup used for new chats, the sitemap, the SEO tags, and the exact SQL printed below. It does not cover the rest of the app, and it does not exercise Neon's own driver or Nexconn.
+`npm test` runs a committed suite with Node's built-in test runner (needs Node 22.7 or newer, unlike the app itself). The suite runs the app's real route handlers and its real SQL against an in-memory Postgres (PGlite, a dev-only dependency) built from the production migration scripts, so it needs no network and cannot reach a real database. It covers the slug aliases and the redirect proxy in every state of a rename, staff sign-in and recovery, sign-up and settings name rules, the shop lookup used for new chats, the sitemap, the SEO tags, the number guard and translation grounding, webhook reliability (duplicates, AI failure, hand-over), authentication throttling and tenant isolation, order and stock behaviour, marketplace visibility and country names, and the exact SQL printed below. It does not cover the rest of the app, and it does not exercise Neon's own driver or Nexconn. Stock reservation was tested one request at a time, not with truly simultaneous connections.
 
 ## Renaming a shop (URL aliases)
 
@@ -251,7 +253,8 @@ Caching and deployment notes:
 - The first time a message is read aloud with Gemini speech takes several seconds; later plays are instant because the audio is cached.
 - Browser pop-ups need the buyer's permission and a secure (https) address. Email replies need the buyer to confirm their address.
 - Buyers are guests identified by a cookie. Clearing site data starts a new buyer unless they used the continue-on-another-device link first.
-- Not built yet: stock alerts, report and block a buyer, installable app (PWA), and automated tests beyond the small unit suite.
+- Not built yet: stock alerts, report and block a buyer, installable app (PWA), restocking on returns, and a script-src content security policy (it needs per-request nonces).
+- Optional setting `MARKETPLACE_UNLISTED_SLUGS` (comma-separated shop slugs) keeps test shops out of the directory, search and sitemap without deleting them.
 
 ## License
 

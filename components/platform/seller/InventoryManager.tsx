@@ -158,7 +158,7 @@ function Thumb({ url, name, className }: { url: string | null; name: string; cla
     <div className={`relative shrink-0 overflow-hidden bg-gradient-to-br from-indigo-100 via-violet-100 to-cyan-100 ${className}`}>
       {url && !failed ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={url} alt={name} loading="lazy" onError={() => setFailed(true)} className="absolute inset-0 h-full w-full object-cover" />
+        <img src={url} alt={name} loading="lazy" referrerPolicy="no-referrer" onError={() => setFailed(true)} className="absolute inset-0 h-full w-full object-cover" />
       ) : (
         <span aria-hidden="true" className="absolute inset-0 flex items-center justify-center text-xs font-semibold text-indigo-400">
           {name.slice(0, 2).toUpperCase()}
@@ -178,7 +178,7 @@ function ImagePreview({ url }: { url: string }) {
         </p>
       ) : (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={url} alt="Preview of the product image" onError={() => setFailed(true)} className="h-20 w-20 rounded-lg object-cover ring-1 ring-slate-200" />
+        <img src={url} alt="Preview of the product image" referrerPolicy="no-referrer" onError={() => setFailed(true)} className="h-20 w-20 rounded-lg object-cover ring-1 ring-slate-200" />
       )}
     </div>
   );

@@ -317,7 +317,7 @@ export default function InboxDetails({ detail, staff, onBack, onAction, onChange
           <div className="flex gap-3">
             {product.imageUrl && (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={product.imageUrl} alt={product.name} className="h-16 w-20 shrink-0 rounded-lg object-cover" />
+              <img src={product.imageUrl} alt={product.name} referrerPolicy="no-referrer" className="h-16 w-20 shrink-0 rounded-lg object-cover" />
             )}
             <div className="min-w-0">
               <p className="text-sm font-medium text-slate-100" data-testid="product-name">

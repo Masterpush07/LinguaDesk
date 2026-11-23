@@ -160,7 +160,7 @@ export function ProductBar({ product, sellerSlug }: { product: NonNullable<Buyer
       <div className="mx-auto flex max-w-3xl items-center gap-3">
         {product.imageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={product.imageUrl} alt={product.name} className="h-11 w-11 shrink-0 rounded-lg object-cover" />
+          <img src={product.imageUrl} alt={product.name} referrerPolicy="no-referrer" className="h-11 w-11 shrink-0 rounded-lg object-cover" />
         ) : (
           <span aria-hidden="true" className="h-11 w-11 shrink-0 rounded-lg bg-gradient-to-br from-indigo-100 via-violet-100 to-cyan-100" />
         )}
